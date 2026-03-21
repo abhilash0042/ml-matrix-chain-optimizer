@@ -1,4 +1,41 @@
+# Python
 __pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Data and Models
+data/
+models/
+figures/
+logs/
 *.npy
-randomforest/rf_results/rf_model.pkl
-[cod]
+*.joblib
+*.pkl
+*.json
+
+# IDEs
+.vscode/
+.idea/
+.serena/
+
+# OS
+.DS_Store
+Thumbs.db
