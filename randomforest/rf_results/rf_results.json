@@ -1,0 +1,24 @@
+{
+  "model": "RandomForestRegressor",
+  "n_estimators": 500,
+  "oob_r2": 0.9865,
+  "cv_r2_mean": 0.9866,
+  "cv_r2_std": 0.0006,
+  "test_r2": 0.993,
+  "test_r2_log": 0.9861,
+  "test_mape_log": 1.5534,
+  "test_acc_05oom": 98.2,
+  "test_acc_10oom": 99.6,
+  "top10_features": [
+    "min_dim",
+    "log_min",
+    "log_max_triple",
+    "p25",
+    "median_dim",
+    "log_last3_prod",
+    "mean_dim",
+    "log_mean",
+    "ratio_mean",
+    "log_first3_prod"
+  ]
+}
