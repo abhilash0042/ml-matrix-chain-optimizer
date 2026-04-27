@@ -1,4 +1,10 @@
 __pycache__/
 *.npy
-randomforest/rf_results/rf_model.pkl
-[cod]
+*.pth
+*.pkl
+*.joblib
+.venv/
+.serena/
+data/*.json
+results/
+.DS_Store

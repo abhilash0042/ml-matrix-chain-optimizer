@@ -1,0 +1,568 @@
+================================================================================
+     ML MATRIX CHAIN OPTIMIZER — COMPLETE PROJECT ANALYSIS
+================================================================================
+Generated: 2026-04-25
+
+================================================================================
+1. PROJECT GOAL
+================================================================================
+
+Objective: Use Machine Learning to PREDICT the minimum cost of Matrix Chain
+Multiplication (MCM) — replacing or accelerating the O(n³) Dynamic Programming
+(DP) algorithm with a trained model that runs in near-constant time O(1).
+
+Target: Achieve predictions within ~1-5% of the exact DP solution (MAPE < 5%).
+
+Outcome: GOAL NOT FULLY ACHIEVED. Best models reach ~24-35% MAPE in raw cost
+space. R² in log-space is high (~0.98), but raw-space percentage errors remain
+large, especially on edge cases (bottleneck/spiky chains: 85-914% error).
+
+
+================================================================================
+2. DATASET
+================================================================================
+
+2.1 Data Generation (data/generate_data.py)
+--------------------------------------------
+- Two datasets generated: mcm_10000.json (10K) and mcm_50000.json (50K)
+- Primary dataset: 50,000 samples
+- Chain lengths: 3 to 50 matrices (n)
+- Dimension values: 1 to 500
+- Labels computed using exact DP solver (O(n³))
+- Cost range: spans many orders of magnitude (from ~tens to ~billions)
+
+2.2 Data Patterns (6 generators with weighted distribution):
+  - Random chains:      50%  (fully random dimensions 1-500)
+  - Bottleneck chains:  15%  (large dims with 1-3 very small bottleneck dims)
+  - Spiky chains:       10%  (alternating small/large dimensions)
+  - Increasing chains:  10%  (monotonically increasing)
+  - Decreasing chains:  10%  (monotonically decreasing)
+  - Uniform chains:      5%  (all dimensions similar)
+
+2.3 Data Splitting:
+  - Train: 70%, Validation: 15%, Test: 15%
+  - Fixed random_state=42 for reproducibility
+  - Unified load_data_split() function ensures identical splits for all models
+
+
+================================================================================
+3. FEATURE ENGINEERING
+================================================================================
+
+3.1 Version 1 — 30 Engineered Features (data/dataloader.py → extract_features)
+--------------------------------------------------------------------------------
+  Statistical:       n, min, max, mean, std, median, range, CV
+  Log-scaled:        log2(n+1), log10(min+1), log10(max+1), log10(mean+1), log10(std+1)
+  Percentiles:       p25, p75, IQR
+  Triple products:   log10(first3_product), log10(last3_product), log10(max_triple)
+  Binary flags:      has_bottleneck, has_extreme, is_increasing, is_decreasing
+  Diversity:         unique_dims / total_dims
+  Ratios:            ratio_mean, ratio_std, ratio_max (consecutive dim ratios)
+  Size buckets:      is_small (n<=10), is_medium (10<n<=25), is_large (n>25)
+
+3.2 Version 2 — 131 Enhanced Features (data/dataloader.py → extract_features_v2)
+----------------------------------------------------------------------------------
+  30 engineered features (same as v1)
+  + 51 log-scaled padded raw dimensions (preserves sequence order, zero-padded to max length 51)
+  + 50 log-scaled pairwise products: log10(dims[i] * dims[i+1] + 1)
+      → These capture the LOCAL cost structure (building blocks of MCM cost)
+  Total: 131 features
+
+Insight: The v2 features were designed to give models access to the actual
+sequence ordering of dimensions, not just summary statistics. This helps because
+MCM cost depends heavily on WHERE specific dimensions appear in the chain.
+
+
+================================================================================
+4. MODELS IMPLEMENTED — DETAILED BREAKDOWN
+================================================================================
+
+────────────────────────────────────────────────────────────────
+4.1  BASIC NEURAL NETWORK (nn_model/neural.py, training_tutorial.py)
+────────────────────────────────────────────────────────────────
+
+Architecture:
+  - 3-layer MLP: Input(30) → 128 → 64 → 1
+  - BatchNorm1d after each hidden layer
+  - ReLU activation
+  - Dropout: 0.2
+
+Hyperparameters:
+  - Optimizer: Adam (lr=0.001, weight_decay=1e-5)
+  - Loss: MSELoss (on log1p targets)
+  - Scheduler: ReduceLROnPlateau (patience=15)
+  - Batch size: 64 (tutorial), 128 (neural.py)
+  - Epochs: 200-300
+  - Early stopping: patience=20-25
+
+Features Used: 30 engineered features (v1)
+Target Transform: log1p(cost)
+Input Scaling: StandardScaler
+
+Results (from eval_log.txt):
+  - R² (log-space): 0.9844
+  - MAPE (raw-space): 32.10%
+
+Insight: Simplest model. Decent R² but poor raw-space accuracy. MSE loss
+optimizes for log-space fit, not percentage accuracy. Model lacks capacity
+to capture complex nonlinear interactions in MCM cost.
+
+────────────────────────────────────────────────────────────────
+4.2  RETRAINED NEURAL NETWORK (nn_model/train.py)
+────────────────────────────────────────────────────────────────
+
+Architecture:
+  - 4-layer MLP: Input(131) → 512 → 256 → 128 → 64 → 1
+  - LayerNorm (instead of BatchNorm)
+  - SiLU activation (Swish, smoother than ReLU)
+  - Dropout: 0.15
+
+Hyperparameters:
+  - Optimizer: AdamW (lr=3e-4, weight_decay=1e-4)
+  - Loss: HYBRID — 0.6 * MAPE + 0.4 * LogCosh (custom losses)
+  - Scheduler: OneCycleLR (max_lr=3e-4, pct_start=0.1, cosine annealing)
+  - Batch size: 256
+  - Epochs: 500
+  - Early stopping: patience=60
+  - Gradient clipping: max_norm=1.0
+
+Features Used: 131 enhanced features (v2)
+Target Transform: log1p(cost)
+Input Scaling: StandardScaler
+
+Custom Losses:
+  - MAPELoss: converts log predictions back to raw space via expm1(),
+    then computes |true - pred| / true
+  - LogCoshLoss: log(cosh(pred - true)), smooth & outlier-robust
+
+Insight: Major upgrade — wider network, better activation, percentage-aware
+loss, and sequence-aware features. The hybrid loss balances MAPE (forces
+percentage accuracy) with LogCosh (prevents gradient explosions from outliers).
+
+────────────────────────────────────────────────────────────────
+4.3  REFINED RESNET (resnet_model/refined_model.py) — EARLIEST VERSION
+────────────────────────────────────────────────────────────────
+
+Architecture:
+  - ResNet with 6 residual blocks
+  - Input(30) → 512 hidden → 6 ResBlocks → 64 → 1
+  - Each ResBlock: Linear→LayerNorm→SiLU→Dropout(0.1)→Linear→LayerNorm + skip
+  - SiLU (Swish) activation throughout
+
+Hyperparameters:
+  - Optimizer: AdamW (lr=1e-3, weight_decay=1e-4)
+  - Loss: HYBRID — 0.8 * MAPE + 0.2 * MSE
+  - Scheduler: OneCycleLR (max_lr=1e-3)
+  - Batch size: 128
+  - Epochs: 300
+  - Gradient clipping: max_norm=1.0
+
+Features Used: 30 features (v1)
+
+Results (from eval_log.txt):
+  - R² (log-space): 0.9572
+  - MAPE (raw-space): 23.77% ← BEST MAPE among all models
+
+Insight: Skip connections help gradient flow in deeper networks. Despite lower
+R² than tree models, the MAPE-focused loss gave this the BEST percentage
+accuracy. R² is lower because the model sacrifices log-space MSE fit to
+minimize percentage errors — a direct tradeoff from the loss function.
+
+────────────────────────────────────────────────────────────────
+4.4  RESNET v2 — SEQUENCE-AWARE (resnet_model/train_v2.py)
+────────────────────────────────────────────────────────────────
+
+Architecture:
+  - Same ResNet structure, 8 blocks (upgraded from 6)
+  - Input(131) → 512 → 8 ResBlocks → 128 → 1
+
+Hyperparameters:
+  - Optimizer: AdamW (lr=3e-4, weight_decay=1e-4)
+  - Loss: 0.6 * MAPE + 0.4 * LogCosh
+  - Scheduler: OneCycleLR (max_lr=3e-4, pct_start=0.1)
+  - Batch size: 256
+  - Epochs: 500
+  - Early stopping: patience=50
+  - Gradient clipping: 1.0
+
+Features Used: 131 features (v2)
+
+────────────────────────────────────────────────────────────────
+4.5  RESNET — RETRAINED FINAL (resnet_model/train.py)
+────────────────────────────────────────────────────────────────
+
+Architecture:
+  - Input(131) → 512 → 8 ResBlocks → 128 → 1
+  - Dropout: 0.1 (blocks), 0.05 (output)
+
+Hyperparameters:
+  - Optimizer: AdamW (lr=5e-4, weight_decay=1e-4)
+  - Loss: 0.7 * MAPE + 0.3 * LogCosh (more MAPE-heavy)
+  - Scheduler: OneCycleLR (max_lr=5e-4, pct_start=0.05)
+  - Batch size: 512
+  - Epochs: 800
+  - Early stopping: patience=80
+  - Uses unified load_data_split()
+
+Features Used: 131 features (v2)
+Parameter Count: ~2.2M parameters
+
+Insight: The most aggressive ResNet configuration. Higher LR, more MAPE weight,
+longer training, bigger batch. Used the unified data split for fair comparison.
+
+────────────────────────────────────────────────────────────────
+4.6  XGBOOST — BASIC (xgb_model/xgco.py)
+────────────────────────────────────────────────────────────────
+
+Hyperparameters:
+  - n_estimators: 300
+  - max_depth: 6
+  - learning_rate: 0.1
+  - subsample: 0.8
+  - colsample_bytree: 0.8
+  - eval_metric: rmse
+
+Features Used: 30 features (v1)
+Target: Raw cost (NO log transform)
+Split: 80/20 simple split
+
+Insight: First attempt, trained on raw costs without log transform.
+Also tried classification (inappropriate for regression target).
+
+────────────────────────────────────────────────────────────────
+4.7  REFINED XGBOOST (xgb_model/refined_xgb.py) — v4
+────────────────────────────────────────────────────────────────
+
+Hyperparameters (searched via RandomizedSearchCV, 10 iterations, 3-fold CV):
+  - n_estimators: [500, 1000, 1500]
+  - max_depth: [6, 9, 12]
+  - learning_rate: [0.01, 0.03, 0.1]
+  - subsample: [0.7, 0.8, 0.9]
+  - colsample_bytree: [0.7, 0.8, 0.9]
+  - eval_metric: mae
+  - Early stopping on validation set
+
+Features Used: 30 features (v1)
+Target Transform: log1p(cost)
+Split: 80/20, then 85/15 val from train
+
+Results (from eval_log.txt):
+  - R² (log-space): 0.9875
+  - MAPE (raw-space): 35.13%
+
+────────────────────────────────────────────────────────────────
+4.8  XGBOOST v5 — SEQUENCE-AWARE (xgb_model/train_v5.py)
+────────────────────────────────────────────────────────────────
+
+Hyperparameters (RandomizedSearchCV, 30 iterations, 3-fold CV):
+  - n_estimators: [1000, 1500, 2000, 3000] then up to 5000 with early stopping
+  - max_depth: [8, 10, 12, 15]
+  - learning_rate: [0.01, 0.02, 0.05]
+  - subsample: [0.7, 0.8, 0.9]
+  - colsample_bytree: [0.5, 0.6, 0.7, 0.8]
+  - min_child_weight: [1, 3, 5, 10]
+  - reg_alpha: [0, 0.01, 0.1, 1.0]
+  - reg_lambda: [1, 2, 5, 10]
+  - gamma: [0, 0.1, 0.5, 1.0]
+  - tree_method: hist
+
+Features Used: 131 features (v2)
+Target Transform: log1p(cost)
+
+────────────────────────────────────────────────────────────────
+4.9  XGBOOST — RETRAINED FINAL (xgb_model/train.py)
+────────────────────────────────────────────────────────────────
+
+Same hyperparameter search as v5 but with:
+  - Unified load_data_split() for fair comparison
+  - After finding best params via RandomizedSearchCV (30 iter, 3-fold):
+    → Final training with 5000 rounds + early stopping (patience=100)
+    → Retrain on train+val combined with best n_estimators
+  - scoring: neg_mean_absolute_error
+
+Features Used: 131 features (v2)
+
+────────────────────────────────────────────────────────────────
+4.10 RANDOM FOREST — ORIGINAL (rf_model/rf_mcm.py)
+────────────────────────────────────────────────────────────────
+
+Hyperparameters (RandomizedSearchCV, 15 iterations, 3-fold CV):
+  - n_estimators: [100, 200, 500, 800]
+  - max_depth: [None, 10, 20, 30]
+  - max_features: ['auto', 'sqrt', 'log2']
+  - min_samples_split: [2, 5, 10]
+  - min_samples_leaf: [1, 2, 4]
+  - bootstrap: True, oob_score: True
+
+Features Used: 30 features (v1)
+Target Transform: log10(cost + 1)
+5-Fold Cross Validation: R² = 0.9866 ± 0.0006
+
+Results (rf_results.json):
+  - OOB R²: 0.9865
+  - Test R² (raw): 0.993
+  - Test R² (log): 0.9861
+  - MAPE (log): 1.55%
+  - Within 0.5 OOM: 98.2%
+  - Within 1.0 OOM: 99.6%
+
+Top 10 Features by Importance:
+  1. min_dim          2. log_min
+  3. log_max_triple   4. p25
+  5. median_dim       6. log_last3_prod
+  7. mean_dim         8. log_mean
+  9. ratio_mean      10. log_first3_prod
+
+Results (from eval_log.txt):
+  - R² (log-space): 0.9860
+  - MAPE (raw-space): 35.52%
+
+────────────────────────────────────────────────────────────────
+4.11 RANDOM FOREST — RETRAINED (rf_model/train.py)
+────────────────────────────────────────────────────────────────
+
+Hyperparameters (RandomizedSearchCV, 40 iterations, 3-fold CV):
+  - n_estimators: [500, 800, 1000, 1500]
+  - max_depth: [None, 20, 30, 40, 50]
+  - max_features: ['sqrt', 'log2', 0.3, 0.5]
+  - min_samples_split: [2, 3, 5]
+  - min_samples_leaf: [1, 2, 3]
+  - Retrained on train+val after tuning
+
+Features Used: 131 features (v2)
+Target Transform: log1p(cost)
+Uses unified load_data_split()
+
+
+================================================================================
+5. BENCHMARK RESULTS SUMMARY
+================================================================================
+
+5.1 Evaluation Log (benchmarks/eval_log.txt) — 50K Test Set:
+--------------------------------------------------------------
+  Model               | R² (Log)  | MAPE (Raw)
+  --------------------|-----------|------------
+  Random Forest       | 0.9860    | 35.52%
+  Refined XGBoost     | 0.9875    | 35.13%
+  Basic NN            | 0.9844    | 32.10%
+  Refined ResNet      | 0.9572    | 23.77%  ← BEST MAPE
+
+5.2 Final Benchmark Report (benchmarks/final_report.md) — 5 Test Cases:
+------------------------------------------------------------------------
+  Case                | DP (Exact)   | NN Basic  | NN Refined | RF      | XGB Basic | XGB Refined
+  --------------------|-------------|-----------|------------|---------|-----------|------------
+  Easy (Textbook)     | 15,125      | 21% err   | 14% err    | 5% err  | 13% err   | 28% err
+  Moderate (Incr.)    | 68,000      | 13% err   | 4% err     | 27% err | 24% err   | 35% err
+  High Cost (Large)   | 68,000,000  | 14% err   | 36% err    | 3% err  | 4% err    | 1% err
+  Spiky (Bottleneck)  | 301,000     | 712% err  | 85% err    | 914% err| 873% err  | 582% err
+  Balanced (Mix)      | 16,000      | 34% err   | 15% err    | 85% err | 101% err  | 144% err
+
+5.3 Chain-Size Leaderboard (benchmarks/model_verdict.md):
+----------------------------------------------------------
+  Chain Size  | #1 Best        | #2          | #3          | #4 Worst
+  ------------|----------------|-------------|-------------|----------
+  Small-n     | ResNet (44.9%) | XGB (224.9%)| BasicNN     | RF
+  Short-Mid   | ResNet (31.4%) | XGB (116.7%)| RF          | BasicNN
+  Long-Mid    | ResNet (37.8%) | XGB (99.6%) | BasicNN     | RF
+  Large-n     | XGB (69.2%)    | ResNet      | RF          | BasicNN
+
+
+================================================================================
+6. KEY INSIGHTS PER MODEL
+================================================================================
+
+RANDOM FOREST:
+  ✓ Highest R² in log-space (0.986), very stable predictions
+  ✓ Best on "High Cost" cases — captures magnitude well
+  ✓ Top features: min_dim, log_min, log_max_triple (confirms bottleneck dims matter most)
+  ✗ Catastrophic on spiky/bottleneck chains (914% error)
+  ✗ Cannot extrapolate — limited to patterns seen in training
+  ✗ Largest model file (317 MB)
+
+XGBOOST:
+  ✓ Best R² overall (0.9875), strong on large-n chains
+  ✓ Best on "High Cost" case with refined version (1% error)
+  ✓ Wins at large-n (69.2% MAPE — bad but best among all)
+  ✗ Still 582-873% error on spiky chains
+  ✗ Hyperparameter tuning expensive (30 iter × 3-fold × 5000 trees)
+
+NEURAL NETWORK (Basic):
+  ✓ Simpler architecture, faster training
+  ✓ Decent overall R² (0.984)
+  ✗ Only 30 features — misses sequence ordering
+  ✗ MSE loss doesn't optimize for percentage accuracy
+
+RESNET (Refined):
+  ✓ BEST raw-space MAPE (23.77%) — closest to the goal
+  ✓ MAPE loss directly optimizes for percentage accuracy
+  ✓ Skip connections enable deeper networks without degradation
+  ✓ Best on small/medium chains
+  ✗ Lower R² (0.957) — trades log-space fit for percentage accuracy
+  ✗ Still 85% error on spiky chains (improved from 914% but still bad)
+  ✗ Struggles with large-n chains
+
+
+================================================================================
+7. WHY WE DID NOT ACHIEVE THE GOAL (<5% MAPE)
+================================================================================
+
+ROOT CAUSE #1: MCM IS FUNDAMENTALLY A COMBINATORIAL / STRUCTURAL PROBLEM
+-------------------------------------------------------------------------
+The optimal MCM cost depends on the EXACT parenthesization of the chain.
+A chain of n matrices has Catalan(n) possible parenthesizations (~exponential).
+No summary statistics or even padded raw dimensions can capture the recursive
+subproblem structure that DP exploits. The cost is determined by WHICH splits
+are chosen at WHICH positions — this is a global structural dependency that
+flat feature vectors cannot represent.
+
+Example: [10, 1000, 10, 1000, 10] — the cost depends entirely on recognizing
+that multiplying the "10" bottleneck dims first dramatically reduces cost.
+Our features can flag "has_bottleneck=1" but cannot encode WHERE the bottleneck
+is relative to all other splits.
+
+ROOT CAUSE #2: ENORMOUS TARGET RANGE (MULTIPLE ORDERS OF MAGNITUDE)
+--------------------------------------------------------------------
+MCM costs span from ~10 to ~10^9 (10 orders of magnitude). Even with log
+transforms (log1p or log10), a small error in log-space translates to a
+MASSIVE error in raw-space:
+  - 0.1 error in log10 space = ±26% in raw space
+  - 0.3 error in log10 space = ±100% in raw space
+  - 0.5 error in log10 space = ±216% in raw space
+
+This is why R² looks great (0.98+) but MAPE is terrible (24-35%):
+R² measures variance explained in log-space where the spread is small,
+but MAPE measures percentage error in raw-space where the spread is huge.
+
+ROOT CAUSE #3: SPIKY / BOTTLENECK CHAINS ARE DISTRIBUTION OUTLIERS
+-------------------------------------------------------------------
+Spiky chains like [10, 1000, 10, 1000, 10] create extreme cost structures
+where the optimal parenthesization matters enormously. These represent only
+10-15% of training data but have the most complex cost landscape. Models
+underfit these patterns because:
+  - They are underrepresented (only 10-15% of data)
+  - Their cost structure is highly nonlinear
+  - Small changes in dimension positions cause huge cost swings
+
+ROOT CAUSE #4: FEATURES LOSE STRUCTURAL INFORMATION
+----------------------------------------------------
+Even with 131 features including padded raw dims and pairwise products:
+  - Padded raw dims preserve ORDER but not the recursive SPLIT structure
+  - Pairwise products capture adjacent costs but not OPTIMAL SPLIT SELECTION
+  - The DP solution requires considering ALL possible splits at ALL positions
+    simultaneously — this is a global optimization that local features miss
+  - 51 padded dimensions + 50 products = fixed-size representation of a
+    variable-length RECURSIVE problem → fundamental information loss
+
+ROOT CAUSE #5: WRONG PROBLEM FORMULATION
+-----------------------------------------
+We formulated this as a REGRESSION problem: predict cost from features.
+But MCM is really an OPTIMIZATION problem: find the best parenthesization.
+A better ML formulation might be:
+  - Predict the optimal SPLIT POINT at each recursion level
+  - Use a sequence-to-sequence model (Transformer/RNN) that can process
+    the chain sequentially and learn the recursive structure
+  - Use reinforcement learning to learn a splitting policy
+  - Use GNNs to model the subproblem dependency graph
+
+
+================================================================================
+8. WHAT WE COULD DO DIFFERENTLY (FUTURE DIRECTIONS)
+================================================================================
+
+1. TRANSFORMER ARCHITECTURE: Use self-attention to model relationships between
+   ALL dimension pairs simultaneously, not just adjacent ones.
+
+2. SEQUENCE-TO-SEQUENCE: Treat the chain as a sequence and predict split points
+   rather than the final cost directly.
+
+3. GRAPH NEURAL NETWORKS: Model the MCM subproblem structure as a graph where
+   nodes are subchains and edges are dependencies.
+
+4. CURRICULUM LEARNING: Train on small chains first (n=3-5 where patterns are
+   simpler) then progressively increase to larger chains.
+
+5. MORE DATA FOR HARD CASES: Generate 10x more bottleneck/spiky samples to
+   balance the distribution for these worst-case scenarios.
+
+6. ENSEMBLE WITH DP FALLBACK: Use ML for quick estimate, fall back to DP when
+   the predicted cost has high uncertainty.
+
+7. PREDICT LOG-RATIOS: Instead of predicting absolute cost, predict the ratio
+   of optimal cost to some baseline (e.g., greedy cost), which is bounded.
+
+
+================================================================================
+9. COMPLETE FILE INVENTORY
+================================================================================
+
+data/
+  generate_data.py     — Dataset generator (6 patterns, 50K samples)
+  dataloader.py        — Feature extraction (v1: 30, v2: 131 features)
+  mcm_10000.json       — 10K sample dataset (~6.5 MB)
+  mcm_50000.json       — 50K sample dataset (~8.3 MB)
+
+nn_model/
+  neural.py            — Basic NN (3-layer MLP, 30 features, MSE loss)
+  training_tutorial.py — Tutorial version of basic NN training
+  train.py             — Retrained NN (4-layer, 131 features, MAPE+LogCosh)
+  predict.py           — Inference script for basic NN
+
+resnet_model/
+  refined_model.py     — Original ResNet (6 blocks, 30 features, MAPE+MSE)
+  train_v2.py          — ResNet v2 (8 blocks, 131 features, MAPE+LogCosh)
+  train.py             — Final ResNet (8 blocks, 131 features, heavier MAPE)
+
+xgb_model/
+  xgco.py              — Basic XGBoost (300 trees, raw cost, + classification)
+  refined_xgb.py       — Refined XGB v4 (log1p, RandomizedSearchCV 10 iter)
+  train_v5.py          — XGB v5 (131 features, 30 iter search, early stopping)
+  train.py             — Final XGB (131 features, retrain on train+val)
+
+rf_model/
+  rf_mcm.py            — Full RF pipeline (30 features, plots, complexity analysis)
+  train.py             — Retrained RF (131 features, 40 iter search)
+
+utils/
+  mcm_solver.py        — Exact DP solver (returns cost + optimal order)
+
+benchmarks/
+  analyze_data.py      — Dataset statistics
+  benchmark_comparison.py — Basic R² comparison across models
+  calculate_r2.py      — Detailed R² + MAPE evaluation for all models
+  final_benchmark_report.py — 5-case benchmark across all 6 models
+  deep_dive_benchmark.py — Chain-size categorized leaderboard
+  diagnostic.py        — Model diagnostic analysis
+  run_benchmark.py     — Comprehensive benchmark runner
+
+models/ (saved artifacts)
+  best_model.pth, best_model_tut.pth, best_model_refined.pth — NN weights
+  rf_model.pkl (317 MB), best_model_refined_xgb.joblib (31 MB) — Tree models
+  scaler.joblib, scaler_tut.joblib, scaler_refined.joblib — Feature scalers
+  rf_results.json — RF evaluation metrics
+
+
+================================================================================
+10. SUMMARY TABLE — ALL MODELS AT A GLANCE
+================================================================================
+
+  Model            | Features | Architecture          | Loss          | R²(log) | MAPE(raw)
+  -----------------|----------|-----------------------|---------------|---------|----------
+  Basic NN         | 30       | 128→64→1 (MLP)        | MSE           | 0.9844  | 32.10%
+  Retrained NN     | 131      | 512→256→128→64→1      | 0.6MAPE+0.4LC | —       | —
+  Refined ResNet   | 30       | 512→6ResBlocks→64→1   | 0.8MAPE+0.2MSE| 0.9572  | 23.77%
+  ResNet v2        | 131      | 512→8ResBlocks→128→1  | 0.6MAPE+0.4LC | —       | —
+  ResNet Final     | 131      | 512→8ResBlocks→128→1  | 0.7MAPE+0.3LC | —       | —
+  Basic XGBoost    | 30       | 300 trees, depth=6    | RMSE          | —       | —
+  Refined XGB      | 30       | Tuned, log1p          | MAE           | 0.9875  | 35.13%
+  XGB v5           | 131      | Tuned, 5000 trees     | MAE           | —       | —
+  XGB Final        | 131      | Tuned, retrain on t+v | MAE           | —       | —
+  Original RF      | 30       | 500 trees, log10      | R²            | 0.9860  | 35.52%
+  Retrained RF     | 131      | Tuned, 40 iter        | MAE           | —       | —
+
+VERDICT: Refined ResNet achieved the BEST MAPE (23.77%) but still far from the
+<5% target. The fundamental problem is that MCM is a combinatorial optimization
+problem that cannot be reduced to regression on summary features.
+
+================================================================================
+END OF ANALYSIS
+================================================================================
