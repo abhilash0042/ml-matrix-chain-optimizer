@@ -8,3 +8,30 @@ __pycache__/
 data/*.json
 results/
 .DS_Store
+
+# Redundant Research Drafts
+ABSTRACT.md
+FINAL_REPORT.md
+FINAL_RESULTS.txt
+LITERATURE_REVIEW.md
+PROBLEM_STATEMENT.md
+RESEARCH_REPORT.md
+placeholder_feature_importance.png
+placeholder_latency.png
+placeholder_validity.png
+pointer_network_mcm_explanation.txt
+project_analysis.txt
+transformer_mcm_explanation.txt
+conference_101719.tex
+
+# LaTeX build files
+*.log
+*.aux
+*.out
+*.pdf
+*.toc
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.synctex.gz
