@@ -13,7 +13,7 @@ import joblib
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
 
-from data.pointer_features import extract_pointer_features, pad_features, FEATURES_PER_POSITION
+from src.data.pointer_features import extract_pointer_features, pad_features, FEATURES_PER_POSITION
 
 MAX_LEN = 51   # max n=50 → 51 dimension values
 MAX_N = 50     # max number of matrices
