@@ -274,8 +274,8 @@ def load_checkpoint(path, model, optimizer=None, scheduler=None):
 CURRICULUM_STAGES = [
     {'stage': 1, 'max_n': 10,   'epochs': 30, 'lr': 1e-3, 'batch_size': 128},
     {'stage': 2, 'max_n': 20,   'epochs': 30, 'lr': 5e-4, 'batch_size': 96},
-    {'stage': 3, 'max_n': 35,   'epochs': 30, 'lr': 2e-4, 'batch_size': 48},
-    {'stage': 4, 'max_n': None, 'epochs': 50, 'lr': 1e-4, 'batch_size': 32},
+    {'stage': 3, 'max_n': 35,   'epochs': 5,  'lr': 2e-4, 'batch_size': 48},
+    {'stage': 4, 'max_n': None, 'epochs': 8,  'lr': 1e-4, 'batch_size': 32},
 ]
 
 

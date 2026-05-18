@@ -1,0 +1,539 @@
+================================================================================
+IN-DEPTH MATRIX CHAIN MULTIPLICATION MODEL COMPARISON
+================================================================================
+
+STAGE 1: VERY SMALL (N=5)
+--------------------------------------------------------------------------------
+
+Test Case 1: Uniform
+Input Dimensions (n=5):
+[218, 391, 387, 221, 413, 191]
+
+Dynamic Programming Optimal Cost: 78,267,133
+
+Predictions & MAPE:
+  🟢 GNN
+    Predicted Cost: 78,267,133
+    Error (MAPE)  : 0.0000% 🎯 PERFECT
+
+  🟡 Pointer Network
+    Predicted Cost: 78,267,133
+    Error (MAPE)  : 0.0000% 🎯 PERFECT
+
+  🌲 XGBoost
+    Predicted Cost: 89,403,609
+    Error (MAPE)  : 14.2288% 
+
+  🌳 Random Forest
+    Predicted Cost: 81,343,654
+    Error (MAPE)  : 3.9308% 
+
+🏆 Final Verdict: The best performing model is GNN and Pointer Network (Tie with Error: 0.0000%)
+--------------------------------------------------------------------------------
+
+Test Case 2: Spiky
+Input Dimensions (n=5):
+[49, 679, 41, 899, 21, 670]
+
+Dynamic Programming Optimal Cost: 2,746,779
+
+Predictions & MAPE:
+  🟢 GNN
+    Predicted Cost: 2,746,779
+    Error (MAPE)  : 0.0000% 🎯 PERFECT
+
+  🟡 Pointer Network
+    Predicted Cost: 2,746,779
+    Error (MAPE)  : 0.0000% 🎯 PERFECT
+
+  🌲 XGBoost
+    Predicted Cost: 8,546,996
+    Error (MAPE)  : 211.1643% 
+
+  🌳 Random Forest
+    Predicted Cost: 3,624,841
+    Error (MAPE)  : 31.9670% 
+
+🏆 Final Verdict: The best performing model is GNN and Pointer Network (Tie with Error: 0.0000%)
+--------------------------------------------------------------------------------
+
+Test Case 3: Bottleneck
+Input Dimensions (n=5):
+[529, 799, 3, 657, 941, 936]
+
+Dynamic Programming Optimal Cost: 7,250,484
+
+Predictions & MAPE:
+  🟢 GNN
+    Predicted Cost: 7,250,484
+    Error (MAPE)  : 0.0000% 🎯 PERFECT
+
+  🟡 Pointer Network
+    Predicted Cost: 7,250,484
+    Error (MAPE)  : 0.0000% 🎯 PERFECT
+
+  🌲 XGBoost
+    Predicted Cost: 8,383,183
+    Error (MAPE)  : 15.6224% 
+
+  🌳 Random Forest
+    Predicted Cost: 7,590,177
+    Error (MAPE)  : 4.6851% 
+
+🏆 Final Verdict: The best performing model is GNN and Pointer Network (Tie with Error: 0.0000%)
+--------------------------------------------------------------------------------
+
+Test Case 4: Monotone
+Input Dimensions (n=5):
+[48, 68, 88, 108, 128, 148]
+
+Dynamic Programming Optimal Cost: 2,316,288
+
+Predictions & MAPE:
+  🟢 GNN
+    Predicted Cost: 2,316,288
+    Error (MAPE)  : 0.0000% 🎯 PERFECT
+
+  🟡 Pointer Network
+    Predicted Cost: 2,316,288
+    Error (MAPE)  : 0.0000% 🎯 PERFECT
+
+  🌲 XGBoost
+    Predicted Cost: 1,951,316
+    Error (MAPE)  : 15.7568% ❌ INVALID (lower than DP cost)
+
+  🌳 Random Forest
+    Predicted Cost: 1,830,312
+    Error (MAPE)  : 20.9808% ❌ INVALID (lower than DP cost)
+
+🏆 Final Verdict: The best performing model is GNN and Pointer Network (Tie with Error: 0.0000%)
+--------------------------------------------------------------------------------
+
+STAGE 2: SMALL (N=10)
+--------------------------------------------------------------------------------
+
+Test Case 1: Uniform
+Input Dimensions (n=10):
+[352, 474, 401, 208, 406, 286, 66, 181, 112, 380, 286]
+
+Dynamic Programming Optimal Cost: 60,263,148
+
+Predictions & MAPE:
+  🟢 GNN
+    Predicted Cost: 60,263,148
+    Error (MAPE)  : 0.0000% 🎯 PERFECT
+
+  🟡 Pointer Network
+    Predicted Cost: 60,263,148
+    Error (MAPE)  : 0.0000% 🎯 PERFECT
+
+  🌲 XGBoost
+    Predicted Cost: 84,863,068
+    Error (MAPE)  : 40.8208% 
+
+  🌳 Random Forest
+    Predicted Cost: 58,679,953
+    Error (MAPE)  : 2.6271% ❌ INVALID (lower than DP cost)
+
+🏆 Final Verdict: The best performing model is GNN and Pointer Network (Tie with Error: 0.0000%)
+--------------------------------------------------------------------------------
+
+Test Case 2: Spiky
+Input Dimensions (n=10):
+[29, 953, 29, 797, 26, 510, 46, 861, 38, 844, 27]
+
+Dynamic Programming Optimal Cost: 4,497,691
+
+Predictions & MAPE:
+  🟢 GNN
+    Predicted Cost: 4,497,691
+    Error (MAPE)  : 0.0000% 🎯 PERFECT
+
+  🟡 Pointer Network
+    Predicted Cost: 4,498,532
+    Error (MAPE)  : 0.0187% 
+
+  🌲 XGBoost
+    Predicted Cost: 25,382,454
+    Error (MAPE)  : 464.3441% 
+
+  🌳 Random Forest
+    Predicted Cost: 26,349,961
+    Error (MAPE)  : 485.8553% 
+
+🏆 Final Verdict: The best performing model is GNN (Error: 0.0000%)
+--------------------------------------------------------------------------------
+
+Test Case 3: Bottleneck
+Input Dimensions (n=10):
+[916, 521, 629, 950, 665, 757, 784, 620, 693, 3, 621]
+
+Dynamic Programming Optimal Cost: 13,847,142
+
+Predictions & MAPE:
+  🟢 GNN
+    Predicted Cost: 13,847,142
+    Error (MAPE)  : 0.0000% 🎯 PERFECT
+
+  🟡 Pointer Network
+    Predicted Cost: 13,847,142
+    Error (MAPE)  : 0.0000% 🎯 PERFECT
+
+  🌲 XGBoost
+    Predicted Cost: 13,328,695
+    Error (MAPE)  : 3.7441% ❌ INVALID (lower than DP cost)
+
+  🌳 Random Forest
+    Predicted Cost: 12,455,660
+    Error (MAPE)  : 10.0489% ❌ INVALID (lower than DP cost)
+
+🏆 Final Verdict: The best performing model is GNN and Pointer Network (Tie with Error: 0.0000%)
+--------------------------------------------------------------------------------
+
+Test Case 4: Monotone
+Input Dimensions (n=10):
+[517, 472, 427, 382, 337, 292, 247, 202, 157, 112, 67]
+
+Dynamic Programming Optimal Cost: 67,478,112
+
+Predictions & MAPE:
+  🟢 GNN
+    Predicted Cost: 67,478,112
+    Error (MAPE)  : 0.0000% 🎯 PERFECT
+
+  🟡 Pointer Network
+    Predicted Cost: 67,478,112
+    Error (MAPE)  : 0.0000% 🎯 PERFECT
+
+  🌲 XGBoost
+    Predicted Cost: 65,498,858
+    Error (MAPE)  : 2.9332% ❌ INVALID (lower than DP cost)
+
+  🌳 Random Forest
+    Predicted Cost: 67,416,659
+    Error (MAPE)  : 0.0911% ❌ INVALID (lower than DP cost)
+
+🏆 Final Verdict: The best performing model is GNN and Pointer Network (Tie with Error: 0.0000%)
+--------------------------------------------------------------------------------
+
+STAGE 3: INTERMEDIATE (N=20)
+--------------------------------------------------------------------------------
+
+Test Case 1: Uniform
+Input Dimensions (n=20):
+[174, 64, 443, 267, 146, 188, 254, 498, 479, 420, 275, 444, 72, 232, 183, 348, 54, 81, 84, 268, 160]
+
+Dynamic Programming Optimal Cost: 71,853,102
+
+Predictions & MAPE:
+  🟢 GNN
+    Predicted Cost: 71,853,102
+    Error (MAPE)  : 0.0000% 🎯 PERFECT
+
+  🟡 Pointer Network
+    Predicted Cost: 71,853,102
+    Error (MAPE)  : 0.0000% 🎯 PERFECT
+
+  🌲 XGBoost
+    Predicted Cost: 51,103,554
+    Error (MAPE)  : 28.8777% ❌ INVALID (lower than DP cost)
+
+  🌳 Random Forest
+    Predicted Cost: 58,510,930
+    Error (MAPE)  : 18.5687% ❌ INVALID (lower than DP cost)
+
+🏆 Final Verdict: The best performing model is GNN and Pointer Network (Tie with Error: 0.0000%)
+--------------------------------------------------------------------------------
+
+Test Case 2: Spiky
+Input Dimensions (n=20):
+[10, 716, 7, 707, 43, 532, 24, 791, 9, 888, 13, 910, 14, 598, 35, 669, 41, 791, 43, 573, 43]
+
+Dynamic Programming Optimal Cost: 2,330,498
+
+Predictions & MAPE:
+  🟢 GNN
+    Predicted Cost: 2,335,594
+    Error (MAPE)  : 0.2187% 
+
+  🟡 Pointer Network
+    Predicted Cost: 2,345,947
+    Error (MAPE)  : 0.6629% 
+
+  🌲 XGBoost
+    Predicted Cost: 3,348,612
+    Error (MAPE)  : 43.6865% 
+
+  🌳 Random Forest
+    Predicted Cost: 3,061,215
+    Error (MAPE)  : 31.3545% 
+
+🏆 Final Verdict: The best performing model is GNN (Error: 0.2187%)
+--------------------------------------------------------------------------------
+
+Test Case 3: Bottleneck
+Input Dimensions (n=20):
+[603, 604, 768, 972, 989, 783, 941, 4, 523, 615, 823, 996, 966, 929, 934, 548, 907, 521, 505, 855, 504]
+
+Dynamic Programming Optimal Cost: 45,331,756
+
+Predictions & MAPE:
+  🟢 GNN
+    Predicted Cost: 45,331,756
+    Error (MAPE)  : 0.0000% 🎯 PERFECT
+
+  🟡 Pointer Network
+    Predicted Cost: 45,331,756
+    Error (MAPE)  : 0.0000% 🎯 PERFECT
+
+  🌲 XGBoost
+    Predicted Cost: 39,570,283
+    Error (MAPE)  : 12.7096% ❌ INVALID (lower than DP cost)
+
+  🌳 Random Forest
+    Predicted Cost: 37,696,380
+    Error (MAPE)  : 16.8433% ❌ INVALID (lower than DP cost)
+
+🏆 Final Verdict: The best performing model is GNN and Pointer Network (Tie with Error: 0.0000%)
+--------------------------------------------------------------------------------
+
+Test Case 4: Monotone
+Input Dimensions (n=20):
+[747, 711, 675, 639, 603, 567, 531, 495, 459, 423, 387, 351, 315, 279, 243, 207, 171, 135, 99, 63, 27]
+
+Dynamic Programming Optimal Cost: 103,924,053
+
+Predictions & MAPE:
+  🟢 GNN
+    Predicted Cost: 103,924,053
+    Error (MAPE)  : 0.0000% 🎯 PERFECT
+
+  🟡 Pointer Network
+    Predicted Cost: 103,924,053
+    Error (MAPE)  : 0.0000% 🎯 PERFECT
+
+  🌲 XGBoost
+    Predicted Cost: 102,496,871
+    Error (MAPE)  : 1.3733% ❌ INVALID (lower than DP cost)
+
+  🌳 Random Forest
+    Predicted Cost: 103,223,532
+    Error (MAPE)  : 0.6741% ❌ INVALID (lower than DP cost)
+
+🏆 Final Verdict: The best performing model is GNN and Pointer Network (Tie with Error: 0.0000%)
+--------------------------------------------------------------------------------
+
+STAGE 4: ADVANCED (N=35)
+--------------------------------------------------------------------------------
+
+Test Case 1: Uniform
+Input Dimensions (n=35):
+[367, 375, 108, 291, 394, 204, 215, 334, 321, 214, 176, 349, 123, 340, 343, 142, 116, 19, 365, 91, 5, 451, 188, 160, 25, 78, 105, 65, 46, 249, 307, 252, 341, 327, 156, 171]
+
+Dynamic Programming Optimal Cost: 8,730,580
+
+Predictions & MAPE:
+  🟢 GNN
+    Predicted Cost: 8,730,580
+    Error (MAPE)  : 0.0000% 🎯 PERFECT
+
+  🟡 Pointer Network
+    Predicted Cost: 8,730,580
+    Error (MAPE)  : 0.0000% 🎯 PERFECT
+
+  🌲 XGBoost
+    Predicted Cost: 9,161,342
+    Error (MAPE)  : 4.9339% 
+
+  🌳 Random Forest
+    Predicted Cost: 10,093,556
+    Error (MAPE)  : 15.6115% 
+
+🏆 Final Verdict: The best performing model is GNN and Pointer Network (Tie with Error: 0.0000%)
+--------------------------------------------------------------------------------
+
+Test Case 2: Spiky
+Input Dimensions (n=35):
+[35, 975, 44, 582, 22, 795, 48, 625, 35, 716, 44, 719, 37, 677, 13, 797, 40, 675, 31, 993, 38, 727, 30, 903, 15, 929, 31, 600, 29, 740, 21, 781, 27, 544, 14, 535]
+
+Dynamic Programming Optimal Cost: 9,992,982
+
+Predictions & MAPE:
+  🟢 GNN
+    Predicted Cost: 10,015,930
+    Error (MAPE)  : 0.2296% 
+
+  🟡 Pointer Network
+    Predicted Cost: 9,993,507
+    Error (MAPE)  : 0.0053% 
+
+  🌲 XGBoost
+    Predicted Cost: 40,898,680
+    Error (MAPE)  : 309.2740% 
+
+  🌳 Random Forest
+    Predicted Cost: 43,588,838
+    Error (MAPE)  : 336.1945% 
+
+🏆 Final Verdict: The best performing model is Pointer Network (Error: 0.0053%)
+--------------------------------------------------------------------------------
+
+Test Case 3: Bottleneck
+Input Dimensions (n=35):
+[788, 661, 853, 620, 837, 811, 568, 852, 565, 992, 854, 554, 813, 767, 966, 783, 591, 665, 662, 741, 955, 723, 575, 658, 815, 771, 783, 832, 514, 510, 907, 1, 747, 731, 607, 552]
+
+Dynamic Programming Optimal Cost: 18,000,000
+
+Predictions & MAPE:
+  🟢 GNN
+    Predicted Cost: 18,000,000
+    Error (MAPE)  : 0.0000% 🎯 PERFECT
+
+  🟡 Pointer Network
+    Predicted Cost: 18,000,000
+    Error (MAPE)  : 0.0000% 🎯 PERFECT
+
+  🌲 XGBoost
+    Predicted Cost: 20,300,120
+    Error (MAPE)  : 12.7784% 
+
+  🌳 Random Forest
+    Predicted Cost: 15,971,423
+    Error (MAPE)  : 11.2699% ❌ INVALID (lower than DP cost)
+
+🏆 Final Verdict: The best performing model is GNN and Pointer Network (Tie with Error: 0.0000%)
+--------------------------------------------------------------------------------
+
+Test Case 4: Monotone
+Input Dimensions (n=35):
+[1521, 1480, 1439, 1398, 1357, 1316, 1275, 1234, 1193, 1152, 1111, 1070, 1029, 988, 947, 906, 865, 824, 783, 742, 701, 660, 619, 578, 537, 496, 455, 414, 373, 332, 291, 250, 209, 168, 127, 86]
+
+Dynamic Programming Optimal Cost: 2,457,189,248
+
+Predictions & MAPE:
+  🟢 GNN
+    Predicted Cost: 2,457,189,248
+    Error (MAPE)  : 0.0000% 🎯 PERFECT
+
+  🟡 Pointer Network
+    Predicted Cost: 2,457,189,248
+    Error (MAPE)  : 0.0000% 🎯 PERFECT
+
+  🌲 XGBoost
+    Predicted Cost: 2,128,375,705
+    Error (MAPE)  : 13.3817% ❌ INVALID (lower than DP cost)
+
+  🌳 Random Forest
+    Predicted Cost: 1,698,834,450
+    Error (MAPE)  : 30.8627% ❌ INVALID (lower than DP cost)
+
+🏆 Final Verdict: The best performing model is GNN and Pointer Network (Tie with Error: 0.0000%)
+--------------------------------------------------------------------------------
+
+STAGE 5: EXPERT / OOD (N=50)
+--------------------------------------------------------------------------------
+
+Test Case 1: Uniform
+Input Dimensions (n=50):
+[258, 147, 452, 499, 328, 365, 355, 345, 239, 181, 451, 224, 113, 359, 352, 405, 263, 366, 315, 262, 389, 168, 474, 495, 437, 490, 221, 249, 149, 285, 225, 218, 21, 80, 477, 425, 198, 171, 286, 18, 304, 70, 424, 241, 422, 293, 85, 284, 244, 232, 124]
+
+Dynamic Programming Optimal Cost: 75,697,632
+
+Predictions & MAPE:
+  🟢 GNN
+    Predicted Cost: 75,697,632
+    Error (MAPE)  : 0.0000% 🎯 PERFECT
+
+  🟡 Pointer Network
+    Predicted Cost: 75,697,632
+    Error (MAPE)  : 0.0000% 🎯 PERFECT
+
+  🌲 XGBoost
+    Predicted Cost: 47,215,553
+    Error (MAPE)  : 37.6261% ❌ INVALID (lower than DP cost)
+
+  🌳 Random Forest
+    Predicted Cost: 57,030,684
+    Error (MAPE)  : 24.6599% ❌ INVALID (lower than DP cost)
+
+🏆 Final Verdict: The best performing model is GNN and Pointer Network (Tie with Error: 0.0000%)
+--------------------------------------------------------------------------------
+
+Test Case 2: Spiky
+Input Dimensions (n=50):
+[32, 824, 29, 855, 48, 834, 38, 741, 33, 553, 38, 852, 38, 703, 8, 530, 17, 529, 6, 761, 34, 815, 14, 992, 47, 880, 33, 669, 41, 573, 23, 987, 30, 740, 49, 792, 40, 810, 13, 975, 44, 890, 7, 597, 13, 966, 35, 955, 27, 799, 32]
+
+Dynamic Programming Optimal Cost: 7,008,335
+
+Predictions & MAPE:
+  🟢 GNN
+    Predicted Cost: 7,008,335
+    Error (MAPE)  : 0.0000% 🎯 PERFECT
+
+  🟡 Pointer Network
+    Predicted Cost: 7,008,335
+    Error (MAPE)  : 0.0000% 🎯 PERFECT
+
+  🌲 XGBoost
+    Predicted Cost: 15,765,619
+    Error (MAPE)  : 124.9553% 
+
+  🌳 Random Forest
+    Predicted Cost: 28,542,846
+    Error (MAPE)  : 307.2700% 
+
+🏆 Final Verdict: The best performing model is GNN and Pointer Network (Tie with Error: 0.0000%)
+--------------------------------------------------------------------------------
+
+Test Case 3: Bottleneck
+Input Dimensions (n=50):
+[696, 584, 921, 906, 908, 780, 745, 970, 917, 746, 512, 849, 649, 853, 712, 4, 998, 952, 783, 727, 606, 661, 527, 974, 855, 512, 747, 609, 834, 889, 896, 582, 532, 909, 959, 653, 619, 858, 869, 520, 756, 814, 561, 979, 775, 691, 662, 734, 682, 577, 552]
+
+Dynamic Programming Optimal Cost: 110,524,260
+
+Predictions & MAPE:
+  🟢 GNN
+    Predicted Cost: 110,524,260
+    Error (MAPE)  : 0.0000% 🎯 PERFECT
+
+  🟡 Pointer Network
+    Predicted Cost: 110,524,260
+    Error (MAPE)  : 0.0000% 🎯 PERFECT
+
+  🌲 XGBoost
+    Predicted Cost: 104,235,861
+    Error (MAPE)  : 5.6896% ❌ INVALID (lower than DP cost)
+
+  🌳 Random Forest
+    Predicted Cost: 88,958,894
+    Error (MAPE)  : 19.5119% ❌ INVALID (lower than DP cost)
+
+🏆 Final Verdict: The best performing model is GNN and Pointer Network (Tie with Error: 0.0000%)
+--------------------------------------------------------------------------------
+
+Test Case 4: Monotone
+Input Dimensions (n=50):
+[28, 77, 126, 175, 224, 273, 322, 371, 420, 469, 518, 567, 616, 665, 714, 763, 812, 861, 910, 959, 1008, 1057, 1106, 1155, 1204, 1253, 1302, 1351, 1400, 1449, 1498, 1547, 1596, 1645, 1694, 1743, 1792, 1841, 1890, 1939, 1988, 2037, 2086, 2135, 2184, 2233, 2282, 2331, 2380, 2429, 2478]
+
+Dynamic Programming Optimal Cost: 2,897,123,432
+
+Predictions & MAPE:
+  🟢 GNN
+    Predicted Cost: 2,897,123,432
+    Error (MAPE)  : 0.0000% 🎯 PERFECT
+
+  🟡 Pointer Network
+    Predicted Cost: 2,897,123,432
+    Error (MAPE)  : 0.0000% 🎯 PERFECT
+
+  🌲 XGBoost
+    Predicted Cost: 2,012,196,195
+    Error (MAPE)  : 30.5450% ❌ INVALID (lower than DP cost)
+
+  🌳 Random Forest
+    Predicted Cost: 1,548,447,199
+    Error (MAPE)  : 46.5523% ❌ INVALID (lower than DP cost)
+
+🏆 Final Verdict: The best performing model is GNN and Pointer Network (Tie with Error: 0.0000%)
+--------------------------------------------------------------------------------
+
