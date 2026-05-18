@@ -43,7 +43,7 @@ def generate_distribution(dist_type: str, n: int, count: int) -> List[List[int]]
 
 def run_comparative_benchmark():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"\n🚀 Starting Comparative Study: Neural vs. Tree-Based Models")
+    print(f"\nStarting Comparative Study: Neural vs. Tree-Based Models")
     
     ptr_model = PointerMCMNet(input_dim=8, d_model=128).to(device)
     if os.path.exists("models/pointer_best.pth"):
@@ -81,7 +81,7 @@ def run_comparative_benchmark():
     dist_results = {}
 
     for d_type in distributions:
-        print(f"\n📊 Testing Distribution: {d_type.upper()}")
+        print(f"\nTesting Distribution: {d_type.upper()}")
         chains = generate_distribution(d_type, chain_len, n_test)
         metrics = {
             'GNN': {'errors': [], 'valid': 0},
@@ -125,11 +125,11 @@ def run_comparative_benchmark():
                 metrics['Pointer']['valid'] += 1 if cost >= true_opt - 1 else 0
             
             tree_feat = np.array(extract_features_v4(dims)).reshape(1, -1)
-            if False and xgb_models:
+            if xgb_models:
                 cost = predict_xgb_ensemble(xgb_models, tree_feat, np.array([g_min]))[0]
                 metrics['XGBoost']['errors'].append(abs(cost - true_opt) / (true_opt + 1e-9) * 100)
                 metrics['XGBoost']['valid'] += 1 if cost >= true_opt - 1 else 0
-            if False and rf_models:
+            if rf_models:
                 cost = predict_rf_ensemble(rf_models, tree_feat, np.array([g_min]))[0]
                 metrics['RF']['errors'].append(abs(cost - true_opt) / (true_opt + 1e-9) * 100)
                 metrics['RF']['valid'] += 1 if cost >= true_opt - 1 else 0
