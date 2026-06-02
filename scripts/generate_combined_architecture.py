@@ -132,27 +132,41 @@ def generate_combined_diagram():
     # Container box for graph visualization
     ax2.add_patch(patches.FancyBboxPatch((0.5, 7.3), 4.2, 2.0, boxstyle="round,pad=0.0,rounding_size=0.1", 
                                         fc='none', ec=COLORS['edge_gnn'], lw=1.0, ls=':'))
-    ax2.text(2.6, 7.45, "DP Dependency Graph", ha='center', va='bottom', fontsize=7.5, color=COLORS['edge_gnn'], fontweight='bold')
+    ax2.text(2.6, 7.33, "DP Sub-problem Graph (n=3)", ha='center', va='bottom', fontsize=7.0, color=COLORS['edge_gnn'], fontweight='bold')
 
-    # Draw Nodes in Graph
+    # Draw Nodes in Graph (Triangular DP sub-problem structure)
     nodes = {
-        'left': (1.4, 8.55),
-        'right': (3.8, 8.55),
-        'parent': (2.6, 7.7)
+        '(1,3)': (2.6, 8.95),
+        '(1,2)': (1.7, 8.25),
+        '(2,3)': (3.5, 8.25),
+        '(1,1)': (0.8, 7.55),
+        '(2,2)': (2.6, 7.55),
+        '(3,3)': (4.4, 7.55)
     }
-    
-    # Draw parent-child dependency edges
-    ax2.annotate("", xy=nodes['parent'], xytext=nodes['left'], arrowprops=dict(arrowstyle="<->", color=COLORS['edge_gnn'], lw=1.0, zorder=2))
-    ax2.annotate("", xy=nodes['parent'], xytext=nodes['right'], arrowprops=dict(arrowstyle="<->", color=COLORS['edge_gnn'], lw=1.0, zorder=2))
 
-    # Add circles over nodes
-    for name, (nx, ny) in nodes.items():
-        circle = patches.Circle((nx, ny), 0.25, fc=COLORS['bg_gnn'], ec=COLORS['edge_gnn'], lw=1.2, zorder=5)
+    # Draw parent-child DP dependency edges
+    edges = [
+        ((2.6, 8.95), (1.7, 8.25)),  # (1,3) -> (1,2)
+        ((2.6, 8.95), (3.5, 8.25)),  # (1,3) -> (2,3)
+        ((1.7, 8.25), (0.8, 7.55)),  # (1,2) -> (1,1)
+        ((1.7, 8.25), (2.6, 7.55)),  # (1,2) -> (2,2)
+        ((3.5, 8.25), (2.6, 7.55)),  # (2,3) -> (2,2)
+        ((3.5, 8.25), (4.4, 7.55)),  # (2,3) -> (3,3)
+    ]
+    for start, end in edges:
+        ax2.annotate("", xy=end, xytext=start, 
+                     arrowprops=dict(arrowstyle="-", color='#b2dfdb', lw=0.8, zorder=2))
+
+    # Draw horizontal same-length neighbor edges (dashed)
+    ax2.plot([1.7, 3.5], [8.25, 8.25], color='#b2dfdb', linestyle='--', lw=0.8, zorder=2)
+    ax2.plot([0.8, 2.6], [7.55, 7.55], color='#b2dfdb', linestyle='--', lw=0.8, zorder=2)
+    ax2.plot([2.6, 4.4], [7.55, 7.55], color='#b2dfdb', linestyle='--', lw=0.8, zorder=2)
+
+    # Add circles and centered text for nodes
+    for label, (nx, ny) in nodes.items():
+        circle = patches.Circle((nx, ny), 0.22, fc=COLORS['bg_gnn'], ec=COLORS['edge_gnn'], lw=1.0, zorder=5)
         ax2.add_patch(circle)
-        
-    ax2.text(1.4, 8.55, "$(i,k)$", ha='center', va='center', fontsize=7, fontweight='bold', zorder=6, color=COLORS['text_dark'])
-    ax2.text(3.8, 8.55, "$(k+1,j)$", ha='center', va='center', fontsize=7, fontweight='bold', zorder=6, color=COLORS['text_dark'])
-    ax2.text(2.6, 7.7, "$(i,j)$", ha='center', va='center', fontsize=7, fontweight='bold', zorder=6, color=COLORS['text_dark'])
+        ax2.text(nx, ny, label, ha='center', va='center', fontsize=6.0, fontweight='bold', zorder=6, color=COLORS['text_dark'])
 
     # 2. Node Features Box
     draw_rounded_box(ax2, 5.5, 7.3, 3.8, 2.0, COLORS['bg_gnn'], COLORS['edge_gnn'], 
