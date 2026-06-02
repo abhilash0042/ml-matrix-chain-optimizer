@@ -39,3 +39,7 @@ logs/
 # OS
 .DS_Store
 Thumbs.db
+
+# Overleaf Zip
+overleaf_figures.zip
+
