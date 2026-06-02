@@ -11,6 +11,7 @@
 \usepackage{url}
 \def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
     T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+\raggedbottom % Prevents huge vertical gaps between paragraphs
 \begin{document}
 
 \title{Constant-Time Neural Matrix Chain Optimization:\\Structural Reasoning vs.\ Statistical Estimation}
@@ -148,7 +149,7 @@ Both XGBoost and Random Forest use a \emph{dual-head ensemble}: a \emph{direct h
 \medskip
 \noindent\textbf{Curriculum Learning.}\quad Both neural models are trained with a multi-stage curriculum (Fig.~\ref{fig:training}, Table~\ref{tab:curriculum}) that progressively increases chain length, mirroring how a student masters short problems before tackling longer ones.
 
-\begin{table}[h]
+\begin{table}[t]
 \caption{Curriculum Learning Schedule}
 \label{tab:curriculum}
 \begin{center}
@@ -210,7 +211,7 @@ Evaluation uses 500 held-out matrix chains (seed$=$42, $n{=}5$--$50$) balanced a
 To ground the numbers in the actual problem: given a 5-matrix chain with dimensions $[10, 100, 5, 50, 10, 30]$, DP finds the optimum at \textbf{10,500} multiplications via $((A_1(A_2 A_3))((A_4 A_5)))$. GraphMCMNet recovers this exact split table. XGBoost predicts 18,347---a 74.7\% overshoot. On a 40-matrix spiky chain the GNN lands within 0.09\% of DP; Random Forest overshoots by over 200\%. Across all 500 chains the GNN reproduces the \emph{exact} DP split table 93\% of the time (Table~\ref{tab:overall}).
 
 \medskip
-\begin{table}[h]
+\begin{table}[t]
 \caption{Overall Model Performance on 500 Test Chains ($n{=}5$--$50$). Best in \textbf{bold}.}
 \label{tab:overall}
 \begin{center}
@@ -235,13 +236,27 @@ The GNN deviates from the DP cost by fewer than 3 parts in 10,000. Both neural m
 
 These validity numbers carry practical weight. A cost model inside a compiler or query optimizer that routinely returns impossible values would steer scheduling decisions toward multiplication orders that cannot physically exist, corrupting every downstream pass that relies on the estimate. The 100\% validity of the structural models eliminates this failure mode entirely.
 
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/fig2_validity_accuracy.png}
+\caption{Model Validity vs. Accuracy. Only structural models (GraphMCMNet and PointerMCMNet) maintain 100\% mathematical validity.}
+\label{fig:validity}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/fig3_mape_distribution.png}
+\caption{Error distribution across different matrix chain properties. The GNN consistently achieves near-zero MAPE.}
+\label{fig:distribution}
+\end{figure}
+
 \subsection{Generalization and Robustness}
 \label{sec:scale}
 
 Table~\ref{tab:breakdown} breaks MAPE down by chain length and dimension distribution.
 
 \medskip
-\begin{table}[h]
+\begin{table}[t]
 \caption{MAPE (\%) by Chain Length and Distribution. $^\dagger$OOD: GNN trained only to $n{=}35$.}
 \label{tab:breakdown}
 \begin{center}
@@ -275,13 +290,20 @@ The GNN was never shown chains longer than 35 during training, yet it records it
 
 On distribution difficulty: Bottleneck and Monotone chains are solved perfectly (0.000\%). Spiky chains are the hardest for every model, but the GNN's worst case there (0.114\%) still beats XGBoost's best case on any distribution (7.19\% on Monotone).
 
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/fig1_mape_chain_length.png}
+\caption{MAPE scaling with chain length. GraphMCMNet demonstrates superior generalization to out-of-distribution lengths ($n>35$).}
+\label{fig:scaling}
+\end{figure}
+
 \subsection{Latency and Ablation}
 \label{sec:sigablation}
 
 Table~\ref{tab:complexity} lists computational complexity and measured speedups. Ablation conclusions draw directly on Tables~\ref{tab:overall} and~\ref{tab:breakdown}.
 
 \medskip
-\begin{table}[h]
+\begin{table}[t]
 \caption{Computational Complexity and Inference Latency}
 \label{tab:complexity}
 \begin{center}
