@@ -79,7 +79,7 @@ def generate_combined_diagram():
     ax1.set_title("(a) PointerMCMNet Neural Architecture", fontweight='bold', pad=8, fontsize=9.5, color=COLORS['edge_pnn'])
 
     # 1. Inputs
-    draw_rounded_box(ax1, 0.8, 8.3, 4.2, 1.0, COLORS['bg_pnn'], COLORS['edge_pnn'], 
+    draw_rounded_box(ax1, 0.4, 8.3, 5.0, 1.0, COLORS['bg_pnn'], COLORS['edge_pnn'], 
                      "Input Dimensions\n$D = [d_0, d_1, \\dots, d_n]$", fontweight='bold')
 
     # Arrow Input -> Encoder
@@ -87,29 +87,31 @@ def generate_combined_diagram():
                  arrowprops=dict(arrowstyle="-|>", color=COLORS['arrow'], lw=1.2, mutation_scale=8))
 
     # 2. Transformer Encoder
-    draw_rounded_box(ax1, 0.8, 4.9, 4.2, 1.9, COLORS['bg_pnn'], COLORS['edge_pnn'], 
-                     "Transformer Encoder\n(6 Layers, 8 Attention Heads)\n\nSelf-Attention Representation:\n$\\mathbf{H} = [\\mathbf{h}_0, \\dots, \\mathbf{h}_n]$")
+    draw_rounded_box(ax1, 0.4, 4.9, 5.0, 1.9, COLORS['bg_pnn'], COLORS['edge_pnn'], 
+                     "Transformer Encoder\n(6 Layers, 8 Attention Heads)\n\nSelf-Attention Representation:\n$\\mathbf{H} = [\\mathbf{h}_0, \\dots, \\mathbf{h}_n]$",
+                     fontsize=8.0)
 
     # Arrow Encoder -> Decoder
     ax1.annotate("", xy=(2.9, 3.3), xytext=(2.9, 4.9), 
                  arrowprops=dict(arrowstyle="-|>", color=COLORS['arrow'], lw=1.2, mutation_scale=8))
 
     # 3. Pointer Decoder
-    draw_rounded_box(ax1, 0.8, 1.4, 4.2, 1.9, COLORS['bg_dec'], COLORS['edge_dec'], 
-                     "Pointer Decoder\n(Bahdanau Cross-Attention)\n\nAttention Scores:\n$u_j = \\mathrm{Attention}(\\mathbf{s}_i, \\mathbf{h}_j)$")
+    draw_rounded_box(ax1, 0.4, 1.4, 5.0, 1.9, COLORS['bg_dec'], COLORS['edge_dec'], 
+                     "Pointer Decoder\n(Bahdanau Cross-Attention)\n\nAttention Scores:\n$u_j = \\mathrm{Attention}(\\mathbf{s}_i, \\mathbf{h}_j)$",
+                     fontsize=8.0)
 
     # Attention flow arrow (Encoder -> Decoder query)
-    ax1.annotate("", xy=(5.0, 2.35), xytext=(5.0, 5.85),
+    ax1.annotate("", xy=(5.4, 2.35), xytext=(5.4, 5.85),
                  arrowprops=dict(arrowstyle="-|>", connectionstyle="arc3,rad=-0.4", 
                                  color=COLORS['edge_dec'], lw=1.0, ls="--", mutation_scale=6))
-    ax1.text(5.5, 4.1, "Attention\nMechanism", ha='left', va='center', fontsize=7.5, color=COLORS['edge_dec'], fontweight='bold')
+    ax1.text(5.9, 4.1, "Attention\nMechanism", ha='left', va='center', fontsize=7.5, color=COLORS['edge_dec'], fontweight='bold')
 
     # 4. Validity Mask
-    draw_rounded_box(ax1, 5.8, 1.9, 3.6, 1.0, COLORS['bg_mask'], COLORS['edge_mask'], 
-                     "Validity Mask\n$u_j = -\\infty$ if $j \\notin [i, j-1]$\n(Strict Feasibility Floor)", fontsize=8)
+    draw_rounded_box(ax1, 5.9, 1.9, 3.8, 1.0, COLORS['bg_mask'], COLORS['edge_mask'], 
+                     "Validity Mask\n$u_j = -\\infty$ if $j \\notin [i, j-1]$\n(Strict Feasibility Floor)", fontsize=7.5)
 
     # Arrow Mask -> Decoder
-    ax1.annotate("", xy=(5.0, 2.35), xytext=(5.8, 2.35), 
+    ax1.annotate("", xy=(5.4, 2.35), xytext=(5.9, 2.35), 
                  arrowprops=dict(arrowstyle="-|>", color=COLORS['edge_mask'], lw=1.0, mutation_scale=6))
 
     # 5. Output Split Point
@@ -169,8 +171,8 @@ def generate_combined_diagram():
         ax2.text(nx, ny, label, ha='center', va='center', fontsize=6.0, fontweight='bold', zorder=6, color=COLORS['text_dark'])
 
     # 2. Node Features Box
-    draw_rounded_box(ax2, 5.5, 7.3, 3.8, 2.0, COLORS['bg_gnn'], COLORS['edge_gnn'], 
-                     "Node Features\n$\\mathbf{x}_{(i,j)} \\in \\mathbb{R}^{10}$\n\n- Boundary dimensions\n- Sub-chain length\n- Dimensions statistics", fontsize=8)
+    draw_rounded_box(ax2, 5.5, 7.3, 4.0, 2.0, COLORS['bg_gnn'], COLORS['edge_gnn'], 
+                     "Node Features\n$\\mathbf{x}_{(i,j)} \\in \\mathbb{R}^{10}$\n\n- Boundary dimensions\n- Sub-chain length\n- Dimensions statistics", fontsize=7.5)
 
     # Arrow Graph/Features -> Message Passing
     ax2.annotate("", xy=(2.6, 6.2), xytext=(2.6, 7.3), 
@@ -179,23 +181,23 @@ def generate_combined_diagram():
                  arrowprops=dict(arrowstyle="-|>", color=COLORS['arrow'], lw=1.0, mutation_scale=6))
 
     # 3. Message Passing Box
-    draw_rounded_box(ax2, 0.5, 4.3, 4.8, 1.9, COLORS['bg_gnn'], COLORS['edge_gnn'],
+    draw_rounded_box(ax2, 0.3, 4.3, 5.2, 1.9, COLORS['bg_gnn'], COLORS['edge_gnn'],
                      "Gated Graph Message Passing\n(6 Gated Attention Layers)\n\n- Neighborhood aggregation\n- Gated residual node updates",
-                     fontsize=8.5)
+                     fontsize=8.0)
 
     # Arrow Message Passing -> Split Scorer
     ax2.annotate("", xy=(2.9, 3.2), xytext=(2.9, 4.3), 
                  arrowprops=dict(arrowstyle="-|>", color=COLORS['arrow'], lw=1.2, mutation_scale=8))
 
     # 4. Split Scorer Box
-    draw_rounded_box(ax2, 0.5, 1.3, 4.8, 1.9, COLORS['bg_dec'], COLORS['edge_dec'],
+    draw_rounded_box(ax2, 0.3, 1.3, 5.2, 1.9, COLORS['bg_dec'], COLORS['edge_dec'],
                      "Split Scorer (MLP)\n\nConcatenated Input:\n$\\mathbf{h}_{\\mathrm{parent}} \\parallel \\mathbf{h}_{\\mathrm{left\\_child}} \\parallel \\mathbf{h}_{\\mathrm{right\\_child}}$\nOutput: $\\mathrm{Softmax}(\\mathrm{MLP}(\\cdot))$",
-                     fontsize=8.5)
+                     fontsize=7.5)
 
     # 5. Auxiliary Cost Head
-    draw_rounded_box(ax2, 5.8, 1.9, 3.6, 1.2, COLORS['bg_dec'], COLORS['edge_dec'],
+    draw_rounded_box(ax2, 5.8, 1.9, 3.8, 1.2, COLORS['bg_dec'], COLORS['edge_dec'],
                      "Auxiliary Cost Head\n\nLog-Cost Regression:\n$\\hat{C} = \\mathrm{MLP}(\\mathbf{h}_{(1,n)})$",
-                     fontsize=8)
+                     fontsize=7.5)
 
     # Connection from Message Passing to Cost Head
     ax2.annotate("", xy=(5.8, 2.5), xytext=(4.5, 4.3), 
