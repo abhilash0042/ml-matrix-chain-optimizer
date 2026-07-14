@@ -1,0 +1,813 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts,amsthm}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{multirow}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newtheorem{remark}{Remark}
+
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+
+\begin{document}
+
+\title{Structural Reasoning versus Statistical Estimation for Learned Matrix Chain Optimization\\
+{\footnotesize \textsuperscript{}}
+}
+
+\author{
+\IEEEauthorblockN{1\textsuperscript{st} Ch. Abhilash}
+\IEEEauthorblockA{\textit{Department of CSE} \\
+\textit{VNR VJIET}\\
+Hyderabad, India \\
+abhilash00042@gmail.com}
+\and
+\IEEEauthorblockN{2\textsuperscript{nd} Dakshatha}
+\IEEEauthorblockA{\textit{Department of CSE} \\
+\textit{VNR VJIET}\\
+Hyderabad, India \\
+dklakshatha18@gmail.com}
+\and
+\IEEEauthorblockN{3\textsuperscript{rd} Shaun Angel}
+\IEEEauthorblockA{\textit{Department of CSE} \\
+\textit{VNR VJIET}\\
+Hyderabad, India \\
+dshaunangel@gmail.com}
+\and
+\IEEEauthorblockN{4\textsuperscript{th} Abhinav}
+\IEEEauthorblockA{\textit{Department of CSE} \\
+\textit{VNR VJIET}\\
+Hyderabad, India \\
+abhinavkanna2627@gmail.com}
+\and
+\IEEEauthorblockN{5\textsuperscript{th} Maneeshwar}
+\IEEEauthorblockA{\textit{Department of CSE} \\
+\textit{VNR VJIET}\\
+Hyderabad, India \\
+maneeshwarkarne@gmail.com}
+}
+
+\maketitle
+
+\begin{abstract}
+The Matrix Chain Multiplication (MCM) problem requires finding the most efficient
+sequence for multiplying a chain of matrices. Classical dynamic programming (DP)
+solves it exactly in $O(n^3)$ time, which becomes a practical bottleneck in systems
+that must evaluate many chains repeatedly, such as deep learning compilers and
+database query optimizers. This paper studies whether learned models can
+approximate the DP solver with negligible error, and---more importantly---%
+\emph{how the problem is framed} determines whether learned predictions are even
+mathematically meaningful. Two paradigms are compared under identical conditions:
+\emph{structural reasoning}, in which a Graph Neural Network (GraphMCMNet) and a
+Pointer Network (PointerMCMNet) predict the DP split table and the cost is then
+computed exactly from the predicted structure, versus \emph{statistical
+estimation}, in which XGBoost and Random Forest ensembles regress the scalar cost
+from 145 engineered features. We prove that any split-table prediction induces a
+feasible parenthesization, so structural models can never report a cost below the
+DP optimum. On a held-out benchmark of 500 synthetic chains ($n{=}5$--$50$) drawn
+from four dimension distributions, GraphMCMNet attains 0.029\% MAPE, a
+log-scale $R^2$ of 0.999999, and reproduces the exact DP split table in 93\% of
+cases, while maintaining 100\% mathematical validity. In contrast, the tree
+ensembles---despite extensive feature engineering---predict costs below the DP
+lower bound in 78--82\% of cases. Wilcoxon signed-rank tests confirm all pairwise
+differences ($p{<}0.001$), with very large effect sizes ($|d|{>}1.0$) between the
+structural and statistical families. Trained only on chains of length
+$n{\le}35$, GraphMCMNet achieves its \emph{lowest} error (0.019\% MAPE) on
+out-of-distribution chains of length $41$--$50$. On our synthetic benchmark,
+these results indicate that predicting combinatorial structure, rather than
+regressing unconstrained costs, is the decisive design choice for learned MCM
+approximation.
+\end{abstract}
+
+\begin{IEEEkeywords}
+matrix chain multiplication, neural combinatorial optimization, graph neural
+network, pointer network, dynamic programming, neural algorithmic reasoning,
+structural reasoning
+\end{IEEEkeywords}
+
+\section{Introduction}
+The Matrix Chain Multiplication (MCM) problem is a cornerstone of dynamic
+programming: given $n$ matrices, determine the parenthesization that minimizes
+the total number of scalar multiplications. The classical dynamic programming
+solution runs in $O(n^3)$ time and $O(n^2)$ space \cite{cormen2009}. Hu and Shing
+\cite{hushing1982} later proposed an $O(n \log n)$ algorithm by reducing the
+problem to convex polygon partitioning; while asymptotically superior, the
+algorithm is considerably more intricate to implement and has seen limited
+adoption in practical optimization systems \cite{lopez2023}. Exact optimization
+therefore remains computationally non-trivial in large-scale systems where
+thousands of chains must be evaluated repeatedly---a routine requirement in deep
+learning compilers \cite{tvm2018,tiramisu2021}, large-scale AI training
+pipelines, database query optimizers \cite{neo2019,balsa2022}, and tensor
+contraction engines.
+
+Prior attempts to accelerate MCM have relied on heuristic search or evolutionary
+algorithms \cite{naz2021}, which offer neither optimality guarantees nor
+structural feasibility guarantees. A natural question arises: can a neural
+network learn to approximate the DP solver with negligible error while
+guaranteeing that every prediction corresponds to a \emph{feasible}
+parenthesization?
+
+Recent advances in neural combinatorial optimization
+\cite{vinyals2015,bello2017}, graph neural networks for structured problems
+\cite{cappart2021,bengio2021,vesselinova2020}, and neural algorithmic reasoning
+\cite{velickovic2021nar,ibarz2022generalist,velickovic2022clrs} suggest the
+answer may be yes---provided the architecture respects the problem's
+combinatorial constraints. However, the dominant paradigm in learned cost
+modeling \cite{neo2019,balsa2022,tiramisu2021} treats optimization targets as
+unconstrained continuous variables, ignoring the discrete feasibility structure
+that DP enforces.
+
+This paper makes the following contributions:
+\begin{enumerate}
+    \item We introduce \textbf{GraphMCMNet}, a graph neural network that maps
+    the DP sub-problem lattice to an explicit graph and predicts optimal split
+    points, attaining 0.029\% MAPE and 100\% mathematical validity on a
+    500-chain held-out benchmark.
+    \item We formally prove (Theorem~\ref{thm:validity}) that any model
+    predicting per-sub-chain split points induces a feasible parenthesization,
+    so its reported cost can never fall below the DP optimum---a guarantee that
+    no unconstrained cost regressor can offer.
+    \item We provide a controlled head-to-head comparison of structural
+    reasoning (GNN and Pointer Network) versus statistical estimation (XGBoost
+    and Random Forest with 145 engineered features), observing a
+    three-order-of-magnitude accuracy gap on our benchmark, with all
+    differences statistically significant ($p{<}0.001$, $|d|{>}1.0$).
+    \item We show that the tree-based regressors violate the DP lower bound in
+    78--82\% of cases, producing infeasible cost predictions---a failure mode
+    that structural architectures eliminate \emph{by construction}.
+    \item We demonstrate length extrapolation: trained only on chains with
+    $n{\le}35$, GraphMCMNet achieves its lowest error (0.019\% MAPE) on
+    out-of-distribution chains 43\% longer than any training instance.
+\end{enumerate}
+
+We deliberately restrict our claims to the synthetic benchmark studied here;
+Section~\ref{sec:limitations} discusses external validity and the experiments
+required to extend these conclusions to production workloads.
+
+The paper is organized as follows. Section~II reviews related work,
+Section~III formulates the problem and states the validity guarantee,
+Section~IV presents the methodology, Section~V describes the experimental
+setup, Section~VI reports results, Section~VII discusses limitations, and
+Section~VIII concludes.
+
+\section{Related Work}
+
+\textbf{Classical MCM Algorithms.} Godbole \cite{godbole1973} first formalized
+efficient matrix chain computation via the $O(n^3)$ dynamic program also
+presented in standard references \cite{cormen2009}. Hu and Shing
+\cite{hushing1982} introduced an $O(n \log n)$ algorithm exploiting a reduction
+to polygon partitioning. L\'opez et al. \cite{lopez2023} recently revisited the
+space of parenthesizations, showing that although all orderings are feasible,
+few are ever optimal. Despite its asymptotic advantage, the Hu--Shing algorithm
+is rarely deployed in practical optimizers due to implementation complexity; we
+discuss its relationship to our approach in Sections~VI-C and~VII.
+
+\textbf{Neural Combinatorial Optimization.} Vinyals et al. \cite{vinyals2015}
+introduced Pointer Networks for sequence-to-sequence combinatorial problems,
+and Bello et al. \cite{bello2017} extended them with reinforcement learning.
+Bahdanau et al. \cite{bahdanau2015} proposed the additive attention mechanism
+that underpins pointer decoders, and the Transformer \cite{vaswani2017} further
+advanced sequential modeling. These approaches treat problems as flat sequences
+and lack explicit structural inductive biases.
+
+\textbf{GNNs for Optimization.} Cappart et al. \cite{cappart2021} surveyed GNNs
+in combinatorial optimization, highlighting their ability to encode problem
+structure. Bengio et al. \cite{bengio2021} provided a methodological framework
+for ML-driven optimization, emphasizing problem-aware encodings. Vesselinova et
+al. \cite{vesselinova2020} demonstrated that learning on graphs improves
+generalization for combinatorial tasks. Graph Transformers
+\cite{rampasek2022gps,muller2023gt} extend attention to arbitrary graph
+structure. Our work extends this line by constructing the DP sub-problem graph
+as an explicit GNN input.
+
+\textbf{Neural Algorithmic Reasoning.} A growing body of work trains networks
+to \emph{execute} classical algorithms rather than regress their outputs.
+Veli\v{c}kovi\'c and Blundell \cite{velickovic2021nar} articulated the neural
+algorithmic reasoning blueprint; the CLRS-30 benchmark
+\cite{velickovic2022clrs} and the generalist algorithmic learner
+\cite{ibarz2022generalist} showed that message-passing networks aligned with an
+algorithm's intermediate state generalize far better than unaligned models, and
+Bounsi et al. \cite{bounsi2024transformers} combined Transformers with
+algorithmic reasoners. Our split-table prediction task is an instance of this
+paradigm applied to the MCM dynamic program: the sub-problem graph aligns the
+network's computation with the DP recurrence, which we conjecture underlies the
+strong length extrapolation observed in Section~VI-B.
+
+\textbf{Learned Cost Models.} In query optimization, Neo \cite{neo2019} and
+Balsa \cite{balsa2022} train neural models to predict query costs as regression
+targets. In compiler optimization, TVM \cite{tvm2018} and Tiramisu
+\cite{tiramisu2021} use learned cost models to guide search. A critical
+limitation of these approaches is that they regress unconstrained scalars,
+offering no guarantee that predictions correspond to feasible solutions. Our
+structural approach addresses this gap directly and quantifies the resulting
+validity failure empirically.
+
+\section{Problem Formulation and Validity Guarantee}
+\label{sec:formulation}
+
+Given a chain of $n$ matrices $A_1, A_2, \ldots, A_n$, where matrix $A_i$ has
+dimensions $d_{i-1} \times d_i$, the MCM problem seeks a parenthesization that
+minimizes the total number of scalar multiplications. Although the final
+product is identical regardless of evaluation order, the cost varies
+dramatically: for a 5-matrix chain with dimensions $[10,100,5,50,10,30]$, one
+parenthesization requires $10{,}500$ multiplications while another demands over
+$200{,}000$. The classical DP recurrence \cite{cormen2009} solves this exactly:
+\begin{equation}
+m[i][j] =
+\begin{cases}
+0 & \text{if } i = j \\
+\displaystyle\min_{i \le k < j} \bigl\{ m[i][k] + m[k{+}1][j] + d_{i-1} d_k d_j \bigr\} & \text{if } i < j
+\end{cases}
+\label{eq:dp}
+\end{equation}
+Here $m[i][j]$ is the minimum cost for sub-chain $A_i \cdots A_j$, and the
+optimal split table $s[i][j] = \arg\min_k \{\cdot\}$ records the best split for
+each sub-chain. Computing the full solution requires $O(n^3)$ time and $O(n^2)$
+space.
+
+\textbf{Central Hypothesis.} Can machine learning models approximate this
+solver while preserving solution quality and \emph{feasibility}? We compare two
+fundamentally different framings:
+\begin{enumerate}
+    \item \textbf{Structural Reasoning (Split Prediction):} the model predicts
+    a split table $\hat{s}[i][j]$ for every sub-chain; the cost is then
+    computed \emph{exactly} from these splits.
+    \item \textbf{Statistical Estimation (Cost Regression):} the model directly
+    regresses a scalar cost $\hat{c}$ from hand-crafted features, with no
+    constraint tying $\hat{c}$ to any parenthesization.
+\end{enumerate}
+
+The following result formalizes why the first framing is safe by construction.
+
+\begin{theorem}[Structural Validity Guarantee]
+\label{thm:validity}
+Let $\hat{s}$ be any predicted split table such that
+$\hat{s}[i][j] \in \{i, i{+}1, \ldots, j{-}1\}$ for every sub-chain
+$1 \le i < j \le n$. Define the induced cost recursively as
+\begin{equation}
+\hat{m}[i][j] =
+\begin{cases}
+0 & i = j\\
+\hat{m}[i][k^\ast] + \hat{m}[k^\ast{+}1][j] + d_{i-1} d_{k^\ast} d_j & i < j
+\end{cases}
+\end{equation}
+with $k^\ast = \hat{s}[i][j]$. Then the evaluation order induced by $\hat{s}$
+is a legal full parenthesization of $A_i \cdots A_j$ for every $(i,j)$, and
+$\hat{m}[1][n] \ge m[1][n]$, with equality if and only if $\hat{s}$ agrees with
+some optimal split table on every sub-chain reachable from $(1,n)$.
+\end{theorem}
+
+\begin{proof}
+We proceed by strong induction on the sub-chain length $\ell = j - i + 1$.
+
+\emph{Base case} ($\ell = 1$): the sub-chain is a single matrix; the trivial
+parenthesization is legal and $\hat{m}[i][i] = 0 = m[i][i]$.
+
+\emph{Inductive step}: assume the claim holds for all sub-chains of length less
+than $\ell$. Consider $(i,j)$ with $j - i + 1 = \ell$ and let
+$k^\ast = \hat{s}[i][j]$. By hypothesis $i \le k^\ast < j$, so $(i, k^\ast)$
+and $(k^\ast{+}1, j)$ are well-formed sub-chains of strictly smaller length.
+By the inductive hypothesis, each admits a legal parenthesization induced by
+$\hat{s}$; composing them with a final product of the two intermediate results
+yields a legal parenthesization of $A_i \cdots A_j$ whose cost is exactly
+$\hat{m}[i][j]$. Since $m[i][j]$ minimizes over all legal parenthesizations of
+the sub-chain---in particular over the one induced by $\hat{s}$---we have
+$\hat{m}[i][j] \ge m[i][j]$. Applying this at $(1,n)$ gives
+$\hat{m}[1][n] \ge m[1][n]$.
+
+For the equality condition: if $\hat{s}$ agrees with an optimal split table on
+every sub-chain reachable from $(1,n)$ through its own splits, then unrolling
+the recursion reproduces an optimal parenthesization, so
+$\hat{m}[1][n] = m[1][n]$. Conversely, if $\hat{m}[1][n] = m[1][n]$, then every
+split on the recursion tree must be cost-optimal for its sub-chain, since any
+strictly suboptimal split at a reachable node would, by the strict additivity
+of \eqref{eq:dp}, make $\hat{m}[1][n] > m[1][n]$.
+\end{proof}
+
+\begin{remark}
+Theorem~\ref{thm:validity} holds for \emph{any} predictor whose output is a
+split table, including an untrained one: the guarantee is architectural, not
+learned. In contrast, an unconstrained regressor may output
+$\hat{c} < m[1][n]$, a cost achieved by no parenthesization. We refer to the
+fraction of predictions satisfying $\hat{c} \ge m[1][n]$ as
+\emph{mathematical validity} and measure it empirically in Section~VI.
+\end{remark}
+
+This distinction---predicting combinatorial structure versus unconstrained
+numbers---is the central axis of this study.
+
+\section{Proposed Methodology}
+
+\subsection{System Overview}
+Fig.~1 presents the overall framework. Given a dimension sequence
+$[d_0, d_1, \ldots, d_n]$, two paradigms operate in parallel. The
+\emph{structural reasoning} branch deploys GraphMCMNet and PointerMCMNet to
+predict split positions, from which exact costs are computed. The
+\emph{statistical estimation} branch uses XGBoost and Random Forest to regress
+costs from engineered features. All predictions are evaluated against
+identical DP ground truth.
+
+\subsection{GraphMCMNet: Learning the DP Structure}
+The key insight behind GraphMCMNet is that the DP recurrence in \eqref{eq:dp}
+naturally defines a graph over sub-problems---and a graph neural network can
+learn to traverse it.
+
+\textbf{Sub-Problem Graph Construction.} Each sub-chain $(i,j)$ for
+$1 \le i \le j \le n$ becomes a node, yielding $n(n{+}1)/2$ nodes (e.g., 10
+nodes for $n{=}4$, arranged in a triangular lattice from leaves to root). Three
+edge types connect these nodes: (i) \emph{DP child edges} mirroring the
+recurrence---connecting each parent $(i,j)$ bidirectionally to its left child
+$(i,k)$ and right child $(k{+}1,j)$ for every valid split $k$; (ii)
+\emph{same-length neighbor edges} linking adjacent sub-chains of identical
+length, enabling lateral information flow; and (iii) implicit \emph{self-loops}
+through gated residual connections. This construction gives each node direct
+access to every sub-problem it depends on in the DP table.
+
+Each node receives a compact 10-dimensional feature vector capturing its local
+context: log-transformed boundary dimensions, their product, normalized
+sub-chain length, mean and standard deviation of log-dimensions, min/max
+statistics, the position of the minimum dimension, and a leaf indicator.
+
+\textbf{Architecture.} GraphMCMNet (Fig.~2(b)) processes this graph in four
+stages. Raw features are projected into a 128-dimensional latent space via a
+linear layer with LayerNorm and SiLU activation. Next, $K{=}6$ rounds of
+\emph{gated message passing} iteratively refine the embeddings: at each layer,
+every node collects messages from its neighbors via a two-layer MLP,
+mean-aggregates them, and updates its embedding through a learned
+sigmoid-activated gate that element-wise modulates the update---preventing
+over-smoothing while integrating structural information. Each layer concludes
+with LayerNorm and a residual connection.
+
+After message passing, a \emph{split scorer} decides, for each sub-chain
+$(i,j)$, which split $k$ is optimal by concatenating the embeddings of the
+parent node with those of the candidate children:
+\begin{equation}
+\mathrm{score}(k \mid i,j) = \mathrm{MLP}_{\mathrm{split}}\bigl(h_{(i,j)} \,\|\, h_{(i,k)} \,\|\, h_{(k+1,j)}\bigr)
+\end{equation}
+The predicted split is $\hat{s}[i][j] = \arg\max_k \mathrm{score}(k \mid i,j)$.
+Scoring is fully vectorized: for each sub-chain length $L$, all sub-chains and
+candidates are scored in a single batched forward pass. An auxiliary cost head
+predicts $\log(1 + m[1][n])$ from the root embedding, providing a direct
+gradient signal for cost accuracy during training.
+
+\subsection{PointerMCMNet: Sequential Split Selection}
+While GraphMCMNet explicitly models the DP graph, PointerMCMNet (Fig.~2(a))
+processes the dimension sequence left-to-right using a Transformer encoder
+\cite{vaswani2017} and ``points'' to split positions using attention
+\cite{vinyals2015,bahdanau2015}. This tests whether a sequential encoder,
+without explicit graph structure, can reconstruct the DP relationships
+implicitly---serving as a controlled ablation of the graph inductive bias.
+
+\textbf{Encoder.} Each of the $n{+}1$ dimension positions receives an
+8-dimensional feature vector: log-dimension, products with left and right
+neighbors, the triple product, normalized position, normalized magnitude, and
+binary indicators for local valleys and peaks. Features are projected to 128
+dimensions, enriched with sinusoidal positional encodings, and processed by a
+6-layer Transformer encoder (8 heads, feed-forward dimension 512, GELU,
+dropout 0.1).
+
+\textbf{Pointer Decoder.} For each sub-chain $(i,j)$ of length $L \ge 3$, a
+query concatenates the boundary hidden states $h_{i-1}$ and $h_j$ with a
+32-dimensional learnable length embedding, projected through an MLP. Each
+candidate split $k$ is scored with Bahdanau (additive) attention:
+$\mathrm{score}(k \mid i,j) = v^{T}\tanh(W_1 q_{(i,j)} + W_2 h_k)$. The
+predicted split is $\hat{s}[i][j] = i + \arg\max_k
+\mathrm{softmax}(\mathrm{scores})$, and an auxiliary cost head (masked mean
+pooling followed by an MLP) provides the same training signal as in
+GraphMCMNet.
+
+\subsection{Statistical Baselines}
+To test whether structural reasoning is necessary, we implement strong
+tree-ensemble baselines---XGBoost \cite{xgboost2016} and Random Forest
+\cite{breiman2001}---armed with an extensive 145-dimensional feature vector.
+If exhaustive feature engineering sufficed, these models would demonstrate it.
+
+The 145 features span four groups: \emph{global statistics} (30 features:
+chain length, dimension min/max/mean/std/median, percentiles, pattern
+indicators), \emph{positional features} (8 features: extrema locations,
+quartile means, trend slope), \emph{cost proxies} (6 features: log-costs from
+four greedy heuristics---left-to-right, right-to-left, minimum-first, and
+balanced splitting), and \emph{padded sequence features} (101 features: the
+full dimension sequence and pairwise products, log-transformed and
+zero-padded). Note that the cost-proxy features hand the baselines the outputs
+of four greedy MCM heuristics directly, so the regression models have access
+to strictly more algorithmic prior knowledge than the raw dimension sequence.
+
+Both baselines use a dual-head ensemble: a \emph{direct head} predicting
+$\log(1{+}c)$ and a \emph{ratio head} predicting $c/c_{\mathrm{greedy}}$.
+Final predictions blend both:
+$\hat{c} = 0.3 \cdot \hat{c}_{\mathrm{direct}} + 0.7 \cdot c_{\mathrm{greedy}}
+\cdot \hat{r}$, anchoring predictions to a known-feasible greedy reference.
+
+\subsection{Training Strategy}
+\textbf{Dataset.} 120{,}000 matrix chains are generated with $n \in [5, 50]$,
+balanced across four dimension distributions: \emph{Uniform}
+($d_i \sim U[10, 500]$), \emph{Spiky} (alternating extremes),
+\emph{Bottleneck} (near-minimal inner dimensions), and \emph{Monotone}
+(linearly increasing). Each sample stores the dimension sequence, DP-optimal
+cost, and the complete split table. Data is split 72\%/13\%/15\% for
+training, validation, and testing, with fixed random seeds for
+reproducibility.
+
+\textbf{Curriculum Learning.} Both neural models are trained with a
+multi-stage curriculum (Fig.~3, Table~\ref{tab:curriculum}) that progressively
+increases chain length. Curriculum learning was chosen after preliminary runs
+showed unstable gradients when long chains were introduced from the start;
+stage boundaries and epoch counts were selected on the validation split.
+
+\begin{table}[t]
+\caption{Curriculum Learning Schedule}
+\label{tab:curriculum}
+\centering
+\begin{tabular}{cccccc}
+\toprule
+Stage & $n_{\max}$ & Epochs & LR & Batch & Mode \\
+\midrule
+1 & 10 & 30 & $10^{-3}$ & 128 & Cached \\
+2 & 20 & 30 & $5 \times 10^{-4}$ & 96 & Cached \\
+3 & 35 & 5 & $2 \times 10^{-4}$ & 48 & Low-mem \\
+4 & 50 & 8 & $10^{-4}$ & 32 & Low-mem \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+A crucial design decision: the GNN is trained \emph{only through Stage 3}
+($n_{\max}{=}35$), deliberately withholding all $n{>}35$ chains. This sets up a
+rigorous test of out-of-distribution generalization: can the model compose
+solutions for chains 43\% longer than anything it has seen? The Pointer
+Network is trained through all four stages, so its OOD comparison in
+Section~VI-B is reported alongside this caveat.
+
+\textbf{Loss Function.} Training optimizes a composite objective balancing
+structural accuracy with cost fidelity:
+\begin{equation}
+\mathcal{L} = 0.9 \sum_{L=2}^{n} \frac{L \cdot \mathrm{CE}_L}{\sum_{L'} L' |S_{L'}|}
++ 0.1 \cdot \mathrm{LogCosh}(\hat{y}_{\mathrm{cost}} - y_{\mathrm{cost}})
+\end{equation}
+The split loss uses cross-entropy weighted by sub-chain length $L$, so longer
+(harder) sub-chains receive proportionally more gradient signal. The auxiliary
+cost loss uses LogCosh---a smooth, outlier-robust alternative to MSE. The
+$0.9/0.1$ weighting was selected on the validation split from
+$\{0.5, 0.7, 0.9\}$; performance was not sensitive to this choice.
+
+\textbf{Optimization.} AdamW ($\beta_1{=}0.9$, $\beta_2{=}0.98$, weight decay
+$10^{-4}$) with cosine annealing warm restarts, gradient clipping at norm 1.0,
+and mixed-precision training (AMP) on an NVIDIA RTX 4050 (6\,GB). Early
+stopping (patience 15) prevents overfitting. Total training: ${\sim}25$
+GPU-hours. GraphMCMNet has ${\sim}3.7$M parameters; PointerMCMNet ${\sim}5.4$M.
+
+\section{Experimental Setup}
+\label{sec:setup}
+
+\textbf{Evaluation Protocol.} A held-out set of 500 matrix chains
+(seed $= 42$, $n{=}5$--$50$) is balanced across the four distributions (125
+each). Ground truth is the exact DP optimum. Inference is run on CPU (Intel,
+RTX 4050 system) unless otherwise noted.
+
+\textbf{Metrics.} Seven metrics capture complementary quality dimensions:
+\emph{MAPE} (mean absolute percentage error of predicted cost vs.\ DP
+optimum), \emph{median and 95th-percentile (P95) error} (robust to outliers),
+\emph{$R^2$ on $\log(1{+}c)$} (correlation across magnitudes),
+\emph{mathematical validity} (fraction with $\hat{c} \ge m[1][n]$;
+Theorem~\ref{thm:validity}), \emph{exact match} (predicted splits identical to
+DP splits; neural models only), and \emph{F1-score} at a 1\% error threshold.
+
+\textbf{Statistical Analysis.} All pairwise model comparisons use two-sided
+Wilcoxon signed-rank tests on per-chain error rates, with Cohen's $d$ for
+effect size. With six pairwise comparisons, a Bonferroni-corrected threshold
+of $\alpha = 0.05/6 \approx 0.0083$ applies; every reported comparison remains
+significant under this correction ($p < 10^{-3}$ throughout).
+
+\section{Results and Discussion}
+
+\subsection{Overall Performance}
+To ground the numbers: given a 5-matrix chain with dimensions
+$[10, 100, 5, 50, 10, 30]$, DP finds the optimum at 10{,}500 multiplications
+via $((A_1(A_2A_3))((A_4A_5)))$. GraphMCMNet recovers this exact split table.
+XGBoost predicts 18{,}347---a 74.7\% overshoot. On a 40-matrix spiky chain the
+GNN lands within 0.09\% of DP; Random Forest overshoots by over 200\%. Across
+all 500 chains the GNN reproduces the exact DP split table 93\% of the time
+(Table~\ref{tab:overall}).
+
+\begin{table}[t]
+\caption{Overall Comparison on 500 Held-Out Chains}
+\label{tab:overall}
+\centering
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{lcccccc}
+\toprule
+Model & MAPE & Median & P95 & $R^2$ & Valid & Exact \\
+      & (\%) & (\%)   & (\%) & (log) & (\%) & Match \\
+\midrule
+GraphMCMNet   & \textbf{0.029} & \textbf{0.000} & \textbf{0.064} & \textbf{0.999999} & \textbf{100.0} & \textbf{93.0\%} \\
+PointerMCMNet & 0.148 & 0.000 & 0.363 & 0.999983 & 100.0 & 88.8\% \\
+XGBoost       & 36.187 & 36.408 & 76.635 & 0.9067 & 22.0 & --- \\
+Random Forest & 43.284 & 39.190 & 82.863 & 0.8922 & 18.2 & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[t]
+\caption{Error Distribution and Threshold Accuracy}
+\label{tab:thresholds}
+\centering
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{lccccc}
+\toprule
+Model & Max Err & Spearman & $\le$1\% & $\le$5\% & $\le$10\% \\
+      & (\%)    & $\rho$   &          &          &           \\
+\midrule
+GraphMCMNet   & \textbf{3.88} & \textbf{0.999998} & \textbf{99.2\%} & \textbf{100\%} & \textbf{100\%} \\
+PointerMCMNet & 10.11 & 0.999971 & 97.0\% & 99.0\% & 99.8\% \\
+XGBoost       & 149.09 & 0.9588 & 3.2\% & 14.2\% & 25.8\% \\
+Random Forest & 310.16 & 0.9450 & 3.6\% & 11.6\% & 18.0\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:thresholds} reports the error distribution beyond the mean. The
+GNN's \emph{median} error is exactly zero (the majority of chains are solved
+optimally), its worst single prediction over 500 chains is 3.88\%, and 100\%
+of predictions fall within 5\% of the DP optimum. The tree ensembles' worst
+cases reach 149\% and 310\% respectively, and fewer than 4\% of their
+predictions land within 1\% of the optimum.
+
+Both neural models maintain 100\% mathematical validity: as guaranteed by
+Theorem~\ref{thm:validity}, each predicts discrete split positions, so the
+resulting cost always corresponds to a real parenthesization and can never dip
+below the DP lower bound. The tree ensembles violate that bound in 78--82\% of
+cases. The root cause is architectural: gradient-boosted trees and random
+forests treat the cost as an ordinary continuous target with no notion of the
+recursive feasibility that DP enforces. The GNN holds a $5.1\times$ MAPE
+advantage over the Pointer Network (0.029\% vs.\ 0.148\%) because it encodes
+the $O(n^2)$ sub-problem dependencies as explicit graph edges; the Pointer
+Network must reconstruct those relationships implicitly through
+self-attention.
+
+These validity numbers carry practical weight. A cost model inside a compiler
+or query optimizer that routinely returns infeasible values would steer
+scheduling decisions toward multiplication orders that cannot exist,
+corrupting downstream passes that rely on the estimate. The 100\% validity of
+the structural models eliminates this failure mode entirely.
+
+\subsection{Generalization and Robustness}
+
+\begin{table}[t]
+\caption{MAPE (\%) Breakdown by Chain Length and Distribution}
+\label{tab:breakdown}
+\centering
+\begin{tabular}{lcccc}
+\toprule
+Condition & GNN & Pointer & XGBoost & RF \\
+\midrule
+\multicolumn{5}{l}{\emph{By chain length}} \\
+$n{=}5$--$20$ & 0.027 & 0.092 & 33.09 & 45.22 \\
+$n{=}21$--$40$ & 0.036 & 0.082 & 39.57 & 43.37 \\
+$n{=}41$--$50^{\dagger}$ & \textbf{0.019} & 0.391 & 35.62 & 39.23 \\
+\midrule
+\multicolumn{5}{l}{\emph{By dimension distribution}} \\
+Uniform    & 0.003 & 0.032 & 54.18 & 51.18 \\
+Spiky      & 0.114 & 0.500 & 41.40 & 46.68 \\
+Bottleneck & 0.000 & 0.059 & 41.97 & 62.94 \\
+Monotone   & 0.000 & 0.000 & 7.19  & 12.34 \\
+\bottomrule
+\multicolumn{5}{l}{\footnotesize $^{\dagger}$GNN trained on $n \le 35$ only; evaluated beyond its training horizon.}
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:breakdown} breaks MAPE down by chain length and dimension
+distribution. The GNN was never shown chains longer than 35 during training,
+yet it records its lowest error (0.019\%) on the $n{=}41$--$50$
+bucket---better than its in-distribution average (0.027--0.036\%). Longer
+chains are composed of many shorter sub-chains the model has already mastered;
+the graph edges let it assemble solutions for larger instances out of familiar
+pieces, consistent with findings in neural algorithmic reasoning that
+algorithm-aligned architectures extrapolate in size
+\cite{velickovic2022clrs,ibarz2022generalist}. The Pointer Network, lacking
+that explicit structure, degrades $4.3\times$ on the same length bucket
+(0.391\% vs.\ 0.092\% at $n{\le}20$)---although we note it was trained on the
+full length range, so this comparison measures architectural robustness rather
+than strict OOD extrapolation. Tree models hover between 31\% and 47\% error
+at every length, reinforcing that the gap is not about scale but about the
+mismatch between unconstrained regression and combinatorial structure.
+
+On distribution difficulty: Bottleneck and Monotone chains are solved
+essentially perfectly by the GNN (0.000\% MAPE at the reported precision).
+Spiky chains are the hardest for every model, but the GNN's worst case there
+(0.114\%) is still smaller than XGBoost's best case on any distribution
+(7.19\% on Monotone). Fig.~4 visualizes the MAPE spread across distributions,
+and Fig.~5 shows that structural accuracy remains high beyond the training
+horizon.
+
+\subsection{Statistical Significance}
+
+\begin{table}[t]
+\caption{Wilcoxon Signed-Rank Tests on Per-Chain Errors (Two-Sided)}
+\label{tab:wilcoxon}
+\centering
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lccc}
+\toprule
+Comparison & $W$ & $p$-value & Cohen's $d$ \\
+\midrule
+Pointer vs.\ GNN     & 302    & $1.5 \times 10^{-4}$  & 0.13 \\
+Pointer vs.\ XGBoost & 3      & $1.3 \times 10^{-83}$ & $-1.34$ \\
+Pointer vs.\ RF      & 11     & $1.4 \times 10^{-83}$ & $-1.09$ \\
+GNN vs.\ XGBoost     & 60     & $1.8 \times 10^{-83}$ & $-1.34$ \\
+GNN vs.\ RF          & 0      & $1.3 \times 10^{-83}$ & $-1.09$ \\
+XGBoost vs.\ RF      & 44{,}082 & $9.7 \times 10^{-9}$ & $-0.25$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:wilcoxon} reports the full significance analysis. All six
+pairwise comparisons are significant at $p < 0.001$, and all survive
+Bonferroni correction for multiple comparisons
+($\alpha = 0.0083$). The structural-vs-statistical comparisons exhibit very
+large effect sizes ($|d| > 1.0$), while GNN-vs-Pointer shows a small but
+significant effect ($d = 0.13$): the two structural models are close to each
+other and categorically separated from the regression baselines. In
+head-to-head win rates (fraction of chains where one model has strictly lower
+error), the GNN wins on 100\% of chains against both tree baselines and on
+91\% of chains against the Pointer Network.
+
+\subsection{Computational Cost and Ablation}
+\label{sec:latency}
+
+\begin{table}[t]
+\caption{Computational Complexity and Measured Speedup}
+\label{tab:complexity}
+\centering
+\begin{tabular}{lccc}
+\toprule
+Model & Inference Complexity & Params & Speedup$^{\ast}$ \\
+\midrule
+DP (exact)      & $O(n^3)$   & ---   & $1\times$ \\
+Hu--Shing (exact) & $O(n \log n)$ & --- & not benchmarked \\
+GraphMCMNet     & $O(n^2 K)$ & 3.7\,M & ${>}16\times$ \\
+PointerMCMNet   & $O(n^2)$   & 5.4\,M & ${>}16\times$ \\
+XGBoost / RF    & $O(n^2)^{\ddagger}$ & --- & ${\sim}12\times$ \\
+\bottomrule
+\multicolumn{4}{l}{\footnotesize $^{\ast}$Wall-clock vs.\ Python DP at $n{=}50$ on CPU; ${>}100\times$ under GPU batching.} \\
+\multicolumn{4}{l}{\footnotesize $^{\ddagger}$145-feature extraction dominates. $K{=}6$ message-passing rounds.}
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:complexity} lists computational complexity and measured
+speedups. We emphasize that neural inference is \emph{not} constant time: it
+scales as $O(n^2 K)$ for the GNN (with a fixed number $K$ of message-passing
+rounds, i.e., constant \emph{inference depth}) and $O(n^2)$ for the Pointer
+Network. The practical advantage comes from (i) a lower asymptotic order than
+the $O(n^3)$ DP and (ii) full vectorization: all sub-chains of a given length
+are scored in one batched pass, yielding a measured ${>}16\times$ wall-clock
+speedup over Python DP on CPU at $n{=}50$ and ${>}100\times$ under GPU
+batching. Two caveats apply. First, the Hu--Shing algorithm achieves
+$O(n \log n)$ exactly; we did not benchmark an implementation, and for
+single-chain latency at large $n$ it would likely dominate all learned
+approaches---the relevant comparison for our target setting is
+\emph{amortized batched throughput}, where thousands of chains are evaluated
+concurrently on accelerator hardware, a regime in which sequential
+combinatorial algorithms parallelize poorly. Second, our DP reference is a
+Python implementation; an optimized C++ DP would shrink the measured margins.
+Both caveats are revisited in Section~\ref{sec:limitations}.
+
+Tree ensembles look fast in isolation, but building the 145-feature vector
+already costs $O(n^2)$, so end-to-end they are slower than the neural models
+and far less accurate.
+
+Three ablation observations stand out, derived from the controlled
+comparisons in Tables~\ref{tab:overall} and \ref{tab:breakdown}:
+\begin{enumerate}
+    \item \emph{Graph encoder vs.\ sequential encoder} (GraphMCMNet vs.\
+    PointerMCMNet, identical training targets and loss): removing the explicit
+    DP-graph inductive bias raises MAPE $5.1\times$ (0.029\% $\to$ 0.148\%)
+    and degrades long-chain robustness $4.3\times$.
+    \item \emph{Split prediction vs.\ cost regression} (structural vs.\
+    statistical branch): removing the structural output space drops validity
+    from 100\% to 18--22\%; no post-processing can restore a guarantee that
+    the output space does not encode.
+    \item \emph{Length extrapolation}: OOD MAPE improves relative to
+    in-distribution (0.019\% vs.\ 0.027--0.036\%), evidence that the GNN has
+    internalized the compositional structure of the DP recurrence rather than
+    memorizing length-specific patterns.
+\end{enumerate}
+A finer-grained component ablation (individual edge types, curriculum stages,
+auxiliary loss) is left to future work.
+
+Taken together, on this benchmark GraphMCMNet behaves as a high-fidelity
+learned approximation of the DP solver: 0.029\% error, zero validity
+violations, and a $16\times$ measured speedup over the Python DP reference.
+The 0.029\% residual amounts to about 3 extra multiplications per 10{,}000
+optimal ones. The validity gap is arguably the most consequential finding: it
+shows that regression-based cost models \cite{neo2019,balsa2022} can silently
+output infeasible values in the majority of cases, a risk that structural
+architectures eliminate by construction. For out-of-distribution robustness,
+problem-aware graph encodings \cite{bengio2021} proved decisive.
+
+\section{Limitations and Threats to Validity}
+\label{sec:limitations}
+
+We state the boundaries of our claims explicitly.
+
+\textbf{Synthetic data.} All training and evaluation chains are synthetic
+($d \in [10, 500]$ and structured variants). Real workloads---tensor
+contraction sequences in deep learning compilers, join orders in query
+optimizers---have dimension statistics that are not uniformly random and may
+include dimensions $d > 10^4$. Our accuracy and validity conclusions are
+therefore established for the studied distributions; validating on traces
+extracted from production compilers (e.g., TVM tensor programs) is the most
+important item of future work.
+
+\textbf{No Hu--Shing runtime benchmark.} We compare against the $O(n^3)$ DP
+because it is the de facto standard in the systems that motivate this work,
+but a rigorous latency study must include an optimized Hu--Shing
+implementation and optimized C/C++ DP as baselines. Until then, our speedup
+figures should be read as ``vs.\ Python DP,'' not as a claim of dominance over
+the best exact algorithms. Our accuracy and validity results are unaffected by
+this caveat, since both exact algorithms produce the same optimal cost.
+
+\textbf{Speedup measurement granularity.} We report aggregate speedup factors
+rather than a per-model millisecond latency table with confidence intervals;
+producing such a table (across $n$, batch sizes, and hardware) is planned.
+
+\textbf{Scale.} Evaluation covers $n \le 50$. The GNN's sub-problem graph has
+$O(n^2)$ nodes and $O(n^3)$ DP-child edges, so memory becomes the binding
+constraint for $n \gg 100$; hierarchical or sparsified graph constructions
+would be needed at that scale.
+
+\textbf{Single training run.} Reported metrics come from a single trained
+checkpoint per model (fixed seeds; evaluation seed 42). Variance across
+training seeds, per-metric confidence intervals, and convergence curves are
+not reported and would strengthen the empirical claims.
+
+\textbf{Approximation, not replacement.} The learned models approximate the DP
+solver; they do not replace it in settings requiring certified optimality.
+The structural guarantee bounds predictions from below by feasibility, not
+from above by optimality: the 93\% exact-match rate means 7\% of chains
+receive a (slightly) suboptimal parenthesization.
+
+\section{Conclusion}
+This paper studied the Matrix Chain Multiplication problem through the lens of
+learned approximation, comparing two framings under identical conditions:
+structural reasoning, which predicts the DP split table and computes costs
+exactly from the predicted structure, and statistical estimation, which
+regresses costs directly. Evaluation across 500 diverse synthetic chains
+reveals a stark dichotomy: regression-based methods fail systematically,
+whereas structural neural models closely track the DP solver.
+
+The most consequential observation is the \emph{mathematical validity gap}.
+Despite 145 engineered features, tree-based regressors produce costs below the
+theoretical DP minimum in roughly 80\% of cases, because they treat a
+combinatorial objective as an unconstrained continuous variable. GraphMCMNet
+instead predicts discrete split decisions, and---as we prove in
+Theorem~\ref{thm:validity}---every such prediction corresponds to a feasible
+parenthesization, yielding 100\% validity by construction. On our benchmark
+this framing simultaneously reduces error to 0.029\% MAPE while providing a
+measured $16\times$ speedup over the Python DP reference, with inference
+scaling as $O(n^2 K)$ rather than $O(n^3)$.
+
+Encoding DP sub-problem dependencies as graph edges also enables length
+extrapolation: trained only on $n \le 35$, GraphMCMNet achieves its lowest
+error on chains of length 41--50. These findings support a broader thesis from
+neural algorithmic reasoning: embedding algorithmic structure directly into
+neural architectures is a prerequisite for reliable learned combinatorial
+optimization. Future work will evaluate on real compiler traces, benchmark
+against optimized exact algorithms including Hu--Shing, report per-seed
+variance and fine-grained latency, and scale the structural approach to
+larger tensor computation graphs.
+
+\begin{thebibliography}{00}
+\bibitem{godbole1973} S. S. Godbole, ``On efficient computation of matrix chain products,'' \emph{IEEE Trans. Computers}, vol. C-22, no. 9, pp. 864--866, Sep. 1973.
+\bibitem{hushing1982} T. C. Hu and M. T. Shing, ``Computation of matrix chain products, Part I, Part II,'' \emph{SIAM J. Computing}, vol. 11, no. 2, pp. 362--373, 1982.
+\bibitem{lopez2023} F. L\'opez, L. Karlsson, and P. Bientinesi, ``On the parenthesisations of matrix chains: All are useful, few are essential,'' arXiv:2303.17352, 2023.
+\bibitem{cormen2009} T. H. Cormen, C. E. Leiserson, R. L. Rivest, and C. Stein, \emph{Introduction to Algorithms}, 3rd ed. Cambridge, MA: MIT Press, 2009.
+\bibitem{naz2021} A. Naz \emph{et al.}, ``Optimal sequence for chain matrix multiplication using evolutionary algorithm,'' \emph{PLOS ONE}, 2021.
+\bibitem{vinyals2015} O. Vinyals, M. Fortunato, and N. Jaitly, ``Pointer networks,'' in \emph{Proc. NeurIPS}, vol. 28, 2015.
+\bibitem{bello2017} I. Bello, H. Pham, Q. V. Le, M. Norouzi, and S. Bengio, ``Neural combinatorial optimization with reinforcement learning,'' in \emph{Proc. ICLR}, 2017.
+\bibitem{bahdanau2015} D. Bahdanau, K. Cho, and Y. Bengio, ``Neural machine translation by jointly learning to align and translate,'' in \emph{Proc. ICLR}, 2015.
+\bibitem{vaswani2017} A. Vaswani \emph{et al.}, ``Attention is all you need,'' in \emph{Proc. NeurIPS}, 2017.
+\bibitem{xgboost2016} T. Chen and C. Guestrin, ``XGBoost: A scalable tree boosting system,'' in \emph{Proc. ACM SIGKDD}, pp. 785--794, 2016.
+\bibitem{breiman2001} L. Breiman, ``Random forests,'' \emph{Machine Learning}, vol. 45, pp. 5--32, 2001.
+\bibitem{neo2019} R. Marcus \emph{et al.}, ``Neo: A learned query optimizer,'' \emph{Proc. VLDB Endowment}, vol. 12, no. 11, pp. 1705--1718, 2019.
+\bibitem{balsa2022} Z. Yang \emph{et al.}, ``Balsa: Learning a query optimizer without expert demonstrations,'' in \emph{Proc. ACM SIGMOD}, 2022.
+\bibitem{cappart2021} Q. Cappart \emph{et al.}, ``Combinatorial optimization and reasoning with graph neural networks,'' in \emph{Proc. IJCAI Survey Track}, 2021.
+\bibitem{bengio2021} Y. Bengio, A. Lodi, and A. Prouvost, ``Machine learning for combinatorial optimization: A methodological tour d'horizon,'' \emph{European J. Operational Research}, vol. 290, no. 2, pp. 405--421, 2021.
+\bibitem{vesselinova2020} N. Vesselinova, R. Steinert, D. F. Perez-Ramirez, and M. Boman, ``Learning combinatorial optimization on graphs,'' \emph{IEEE Access}, vol. 8, pp. 120388--120416, 2020.
+\bibitem{tvm2018} T. Chen \emph{et al.}, ``TVM: An automated end-to-end optimizing compiler for deep learning,'' in \emph{Proc. 13th USENIX OSDI}, 2018.
+\bibitem{tiramisu2021} R. Baghdadi \emph{et al.}, ``A deep learning based cost model for automatic code optimization,'' in \emph{Proc. MLSys}, 2021.
+\bibitem{velickovic2021nar} P. Veli\v{c}kovi\'c and C. Blundell, ``Neural algorithmic reasoning,'' \emph{Patterns}, vol. 2, no. 7, 2021.
+\bibitem{velickovic2022clrs} P. Veli\v{c}kovi\'c \emph{et al.}, ``The CLRS algorithmic reasoning benchmark,'' in \emph{Proc. ICML}, 2022.
+\bibitem{ibarz2022generalist} B. Ibarz \emph{et al.}, ``A generalist neural algorithmic learner,'' in \emph{Proc. Learning on Graphs (LoG)}, 2022.
+\bibitem{bounsi2024transformers} W. Bounsi \emph{et al.}, ``Transformers meet neural algorithmic reasoners,'' arXiv:2406.09308, 2024.
+\bibitem{rampasek2022gps} L. Ramp\'a\v{s}ek \emph{et al.}, ``Recipe for a general, powerful, scalable graph transformer,'' in \emph{Proc. NeurIPS}, 2022.
+\bibitem{muller2023gt} L. M\"uller, M. Galkin, C. Morris, and L. Ramp\'a\v{s}ek, ``Attending to graph transformers,'' \emph{Trans. Machine Learning Research}, 2024.
+\end{thebibliography}
+
+\end{document}
